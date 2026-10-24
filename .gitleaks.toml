@@ -1,0 +1,15 @@
+# Gitleaks configuration — https://github.com/gitleaks/gitleaks
+# The default ruleset stays enabled. Allowlists below cover documented fake values only;
+# real credentials must never be added here.
+
+title = "NationTrack secret scan"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fake example credentials in vendor instructions and the env template"
+regexes = [
+  '''^sk_live_abc123xyz789$''',
+  '''^qr-jwt-secret-min-32-chars$''',
+]

@@ -4,7 +4,7 @@
 
 Your project now has **Context7 API key** integrated globally for enhanced code analysis, understanding, and insights throughout your development workflow.
 
-**API Key**: `${CONTEXT7_API_KEY}`
+**API Key**: read from `CONTEXT7_API_KEY` in `.env.local` (never commit the value).
 
 ## What is Context7?
 
