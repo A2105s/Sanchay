@@ -30,9 +30,9 @@ tables do not exist.
    where table_schema = 'public' order by table_name;
    ```
 
-   All 10 tables (`asset_passports`, `bookings`, `space_users`, `spaces`, `automobiles`,
-   `automobile_bookings`, `audit_logs`, `notifications`, `idle_sessions`, `transfer_requests`)
-   should be listed.
+   All 10 tables (`space_users`, `spaces`, `bookings`, `space_requests`, `asset_passports`,
+   `vehicles`, `audit_logs`, `automobile_station_accounts`, `station_fleet`,
+   `automobile_transfer_requests`) should be listed.
 
 4. Confirm the app sees the database: `GET /api/health/supabase` must return `200`, not `503`.
 5. Until this runs, every data screen renders empty and realtime channels never receive events.
