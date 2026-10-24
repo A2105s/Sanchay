@@ -15,7 +15,7 @@
 	<img src="https://img.shields.io/badge/Language-TypeScript-2563EB?style=flat-square" alt="TypeScript" />
 	<img src="https://img.shields.io/badge/UI-Tailwind%20%2B%20shadcn%2Fui-0F172A?style=flat-square" alt="Tailwind and shadcn" />
 	<img src="https://img.shields.io/badge/Maps-Leaflet-16A34A?style=flat-square" alt="Leaflet" />
-	<img src="https://img.shields.io/badge/Backend-Firebase-FF8C00?style=flat-square" alt="Firebase" />
+	<img src="https://img.shields.io/badge/Backend-Supabase-3ECF8E?style=flat-square" alt="Supabase" />
 	<img src="https://img.shields.io/badge/Testing-Playwright-7C3AED?style=flat-square" alt="Playwright" />
 </p>
 
@@ -84,7 +84,7 @@ Legacy redirects maintained for compatibility:
 | Styling          | Tailwind CSS                          |
 | Component System | shadcn/ui, Radix UI, Lucide           |
 | Mapping          | Leaflet, Marker Clustering            |
-| Data and Auth    | Firebase Auth, Firestore, Storage     |
+| Data and Auth    | Supabase Auth, Postgres, Storage      |
 | Validation       | Zod                                   |
 | Testing          | Playwright                            |
 
@@ -101,6 +101,19 @@ Legacy redirects maintained for compatibility:
 
 ```bash
 npm install
+```
+
+Create `.env.local` with the Supabase project credentials:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxx
+```
+
+Then apply the database schema once (Supabase Dashboard → SQL → New query) using
+`supabase/schema.sql`, and start the app:
+
+```bash
 npm run dev
 ```
 
@@ -137,10 +150,8 @@ tests/          # Playwright E2E suites
 
 ## Governance and Security Notes
 
-- Rules and indexes are versioned in-repo:
-  - `firestore.rules`
-  - `firestore.indexes.json`
-  - `storage.rules`
+- The database schema, RLS policies, realtime publication and transfer RPCs are
+  versioned in `supabase/schema.sql`.
 - API role checks are enforced for protected workflows.
 - Run periodic dependency/security scans as part of release hygiene.
 

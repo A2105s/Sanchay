@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getSessionContext } from '@/lib/api-role';
-import { getAdminDb } from '@/lib/firebase-admin';
+import { createSupabaseServerClient } from '@/utils/supabase/server';
 
 interface Props {
   params: Promise<{ bookingId: string }>;
@@ -26,22 +26,35 @@ export async function PATCH(request: Request, { params }: Props) {
   }
 
   try {
-    const db = getAdminDb();
-    const bookingRef = db.collection('bookings').doc(bookingId);
-    const snapshot = await bookingRef.get();
+    const supabase = await createSupabaseServerClient();
+    const { data: booking, error: readError } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('id', bookingId)
+      .maybeSingle();
 
-    if (!snapshot.exists) {
+    if (readError) throw readError;
+
+    if (!booking) {
       return NextResponse.json({ success: false, message: 'Booking not found' }, { status: 404 });
     }
 
     const rejectedBy = body.actorName ?? session?.openSpaceName ?? session?.name ?? 'Admin Panel';
-    await bookingRef.update({
-      status: 'REJECTED',
-      rejectedReason: body.reason,
-      rejectedBy,
-      rejectedAt: new Date().toISOString(),
-      approvedBy: null,
-    });
+    const nowIso = new Date().toISOString();
+
+    const { error: updateError } = await supabase
+      .from('bookings')
+      .update({
+        status: 'REJECTED',
+        rejected_reason: body.reason,
+        rejected_by: rejectedBy,
+        rejected_at: nowIso,
+        approved_by: null,
+        updated_at: nowIso,
+      })
+      .eq('id', bookingId);
+
+    if (updateError) throw updateError;
 
     return NextResponse.json({
       success: true,

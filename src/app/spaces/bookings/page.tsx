@@ -1,16 +1,16 @@
 'use client';
 
-import { collection, query as firestoreQuery, onSnapshot, where } from 'firebase/firestore';
 import { Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { db, isFirebaseReady } from '@/lib/firebase';
+import { fetchRows, subscribeToTable } from '@/lib/supabase-query';
+import { isSupabaseConfigured } from '@/utils/supabase/client';
 import type { BookingStatus } from '@/types/spaces';
 
-interface FirebaseBooking {
+interface SpaceBooking {
   id: string;
   bookingId: string;
   spaceId: string;
@@ -46,17 +46,18 @@ const tabStatuses: Record<string, BookingStatus[]> = {
 };
 
 export default function SpacesBookingsPage() {
-  const [bookings, setBookings] = useState<FirebaseBooking[]>([]);
+  const [bookings, setBookings] = useState<SpaceBooking[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [tab, setTab] = useState<keyof typeof tabStatuses>('pending');
   const [loadMessage, setLoadMessage] = useState('');
 
   useEffect(() => {
-    if (!isFirebaseReady) {
-      setLoadMessage('Firebase is not configured for live bookings.');
+    if (!isSupabaseConfigured) {
+      setLoadMessage('Supabase is not configured for live bookings.');
       return;
     }
 
+    let active = true;
     let unsubscribe: (() => void) | undefined;
 
     const attach = async () => {
@@ -77,52 +78,63 @@ export default function SpacesBookingsPage() {
         return;
       }
 
-      const bookingsQuery = firestoreQuery(
-        collection(db, 'bookings'),
-        where('bookedBy', '==', uid)
-      );
-      unsubscribe = onSnapshot(bookingsQuery, (snapshot) => {
-        const next = snapshot.docs
-          .map((docSnap) => {
-            const data = docSnap.data() as Record<string, unknown>;
-            const startRaw = (data.startTime ?? data.startDateTime ?? '') as string;
-            const endRaw = (data.endTime ?? data.endDateTime ?? '') as string;
+      const load = async () => {
+        try {
+          const rows = await fetchRows<Record<string, unknown>>('bookings', {
+            filters: [{ column: 'booked_by', value: uid }],
+          });
 
-            return {
-              id: docSnap.id,
-              bookingId: (data.bookingId as string) ?? `BK-${docSnap.id.slice(0, 8).toUpperCase()}`,
-              spaceId: (data.spaceId as string) ?? '',
-              spaceName: (data.spaceName as string) ?? '-',
-              bookedByName: (data.bookedByName as string) ?? '-',
-              bookedBy: (data.bookedBy as string) ?? '-',
-              bookedByPhone: (data.bookedByPhone as string) ?? undefined,
-              bookedByRole: (data.bookedByRole as string) ?? undefined,
-              purpose: (data.purpose as string) ?? '-',
-              expectedAttendees: Number(data.expectedAttendees ?? 0),
-              assetId: (data.assetId as string) ?? undefined,
-              status: ((data.status as string) ?? 'PENDING').toUpperCase(),
-              startDateTime: startRaw,
-              endDateTime: endRaw,
-              createdAt:
-                typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
-              approvedBy: (data.approvedBy as string) ?? undefined,
-              rejectedReason: (data.rejectedReason as string) ?? undefined,
-              organizationName: (data.organizationName as string) ?? undefined,
-            } satisfies FirebaseBooking;
-          })
-          .sort((a, b) =>
-            a.createdAt && b.createdAt ? b.createdAt.localeCompare(a.createdAt) : 0
-          );
+          if (!active) return;
 
-        setBookings(next);
-        setLoadMessage('');
-      });
+          const next = rows
+            .map((data) => {
+              const id = String(data.id ?? '');
+              const startRaw = String(data.startTime ?? data.startDateTime ?? '');
+              const endRaw = String(data.endTime ?? data.endDateTime ?? '');
+
+              return {
+                id,
+                bookingId: (data.bookingId as string) ?? `BK-${id.slice(0, 8).toUpperCase()}`,
+                spaceId: (data.spaceId as string) ?? '',
+                spaceName: (data.spaceName as string) ?? '-',
+                bookedByName: (data.bookedByName as string) ?? '-',
+                bookedBy: (data.bookedBy as string) ?? '-',
+                bookedByPhone: (data.bookedByPhone as string) ?? undefined,
+                bookedByRole: (data.bookedByRole as string) ?? undefined,
+                purpose: (data.purpose as string) ?? '-',
+                expectedAttendees: Number(data.expectedAttendees ?? 0),
+                assetId: (data.assetId as string) ?? undefined,
+                status: ((data.status as string) ?? 'PENDING').toUpperCase(),
+                startDateTime: startRaw,
+                endDateTime: endRaw,
+                createdAt:
+                  typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
+                approvedBy: (data.approvedBy as string) ?? undefined,
+                rejectedReason: (data.rejectedReason as string) ?? undefined,
+                organizationName: (data.organizationName as string) ?? undefined,
+              } satisfies SpaceBooking;
+            })
+            .sort((a, b) =>
+              a.createdAt && b.createdAt ? b.createdAt.localeCompare(a.createdAt) : 0
+            );
+
+          setBookings(next);
+          setLoadMessage('');
+        } catch {
+          if (active) setLoadMessage('Unable to load your bookings right now.');
+        }
+      };
+
+      await load();
+      if (!active) return;
+      unsubscribe = subscribeToTable('bookings', () => void load());
     };
 
     void attach();
 
     return () => {
-      if (unsubscribe) unsubscribe();
+      active = false;
+      unsubscribe?.();
     };
   }, []);
 
@@ -169,6 +181,7 @@ export default function SpacesBookingsPage() {
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Search booking ID, purpose, or asset ID"
+            aria-label="Search bookings"
             className="pl-9"
           />
         </label>

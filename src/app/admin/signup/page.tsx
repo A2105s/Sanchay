@@ -1,6 +1,5 @@
 'use client';
 
-import { createUserWithEmailAndPassword } from 'firebase/auth';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -8,7 +7,7 @@ import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { auth, isFirebaseReady } from '@/lib/firebase';
+import { getSupabaseClient, isSupabaseConfigured } from '@/utils/supabase/client';
 
 export default function AdminSignupPage() {
   const router = useRouter();
@@ -22,8 +21,8 @@ export default function AdminSignupPage() {
     e.preventDefault();
     setError('');
 
-    if (!isFirebaseReady) {
-      setError('Firebase is not configured.');
+    if (!isSupabaseConfigured) {
+      setError('Supabase is not configured.');
       return;
     }
     if (password !== confirm) {
@@ -33,7 +32,16 @@ export default function AdminSignupPage() {
 
     try {
       setLoading(true);
-      await createUserWithEmailAndPassword(auth, email.trim(), password);
+      const supabase = getSupabaseClient();
+      if (!supabase) throw new Error('Supabase is not configured.');
+
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
+
+      if (signUpError) throw signUpError;
+
       router.push('/admin');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to sign up.';

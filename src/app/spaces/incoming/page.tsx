@@ -1,20 +1,13 @@
 'use client';
 
-import {
-  collection,
-  doc,
-  query as firestoreQuery,
-  onSnapshot,
-  updateDoc,
-  where,
-} from 'firebase/firestore';
 import { Check, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { db, isFirebaseReady } from '@/lib/firebase';
+import { fetchRows, subscribeToTable, updateRow } from '@/lib/supabase-query';
+import { isSupabaseConfigured } from '@/utils/supabase/client';
 
 import type { BookingStatus } from '@/types/spaces';
 
@@ -49,11 +42,12 @@ export default function SpacesIncomingRequestsPage() {
   const [loadMessage, setLoadMessage] = useState('');
 
   useEffect(() => {
-    if (!isFirebaseReady) {
-      setLoadMessage('Firebase is not configured for live incoming requests.');
+    if (!isSupabaseConfigured) {
+      setLoadMessage('Supabase is not configured for live incoming requests.');
       return;
     }
 
+    let active = true;
     let unsubscribe: (() => void) | undefined;
 
     const attach = async () => {
@@ -75,45 +69,56 @@ export default function SpacesIncomingRequestsPage() {
       }
 
       setSessionSpaceName(openSpaceName);
-      const incomingQuery = firestoreQuery(
-        collection(db, 'bookings'),
-        where('spaceName', '==', openSpaceName)
-      );
 
-      unsubscribe = onSnapshot(incomingQuery, (snapshot) => {
-        const next = snapshot.docs
-          .map((docSnap) => {
-            const data = docSnap.data() as Record<string, unknown>;
-            const startRaw = (data.startTime ?? data.startDateTime ?? '') as string;
-            const endRaw = (data.endTime ?? data.endDateTime ?? '') as string;
+      const load = async () => {
+        try {
+          const rows = await fetchRows<Record<string, unknown>>('bookings', {
+            filters: [{ column: 'space_name', value: openSpaceName }],
+          });
 
-            return {
-              id: docSnap.id,
-              bookingId: (data.bookingId as string) ?? `BK-${docSnap.id.slice(0, 8).toUpperCase()}`,
-              spaceName: (data.spaceName as string) ?? openSpaceName,
-              bookedByName: (data.bookedByName as string) ?? '-',
-              bookedBy: (data.bookedBy as string) ?? '-',
-              organizationName: (data.organizationName as string) ?? undefined,
-              purpose: (data.purpose as string) ?? '-',
-              expectedAttendees: Number(data.expectedAttendees ?? 0),
-              status: ((data.status as string) ?? 'PENDING').toUpperCase(),
-              startDateTime: startRaw,
-              endDateTime: endRaw,
-              approvedBy: (data.approvedBy as string) ?? undefined,
-              rejectedReason: (data.rejectedReason as string) ?? undefined,
-            } satisfies IncomingBooking;
-          })
-          .sort((a, b) => a.bookingId.localeCompare(b.bookingId));
+          if (!active) return;
 
-        setBookings(next);
-        setLoadMessage('');
-      });
+          const next = rows
+            .map((data) => {
+              const id = String(data.id ?? '');
+              const startRaw = String(data.startTime ?? data.startDateTime ?? '');
+              const endRaw = String(data.endTime ?? data.endDateTime ?? '');
+
+              return {
+                id,
+                bookingId: (data.bookingId as string) ?? `BK-${id.slice(0, 8).toUpperCase()}`,
+                spaceName: (data.spaceName as string) ?? openSpaceName,
+                bookedByName: (data.bookedByName as string) ?? '-',
+                bookedBy: (data.bookedBy as string) ?? '-',
+                organizationName: (data.organizationName as string) ?? undefined,
+                purpose: (data.purpose as string) ?? '-',
+                expectedAttendees: Number(data.expectedAttendees ?? 0),
+                status: ((data.status as string) ?? 'PENDING').toUpperCase(),
+                startDateTime: startRaw,
+                endDateTime: endRaw,
+                approvedBy: (data.approvedBy as string) ?? undefined,
+                rejectedReason: (data.rejectedReason as string) ?? undefined,
+              } satisfies IncomingBooking;
+            })
+            .sort((a, b) => a.bookingId.localeCompare(b.bookingId));
+
+          setBookings(next);
+          setLoadMessage('');
+        } catch {
+          if (active) setLoadMessage('Unable to load incoming requests right now.');
+        }
+      };
+
+      await load();
+      if (!active) return;
+      unsubscribe = subscribeToTable('bookings', () => void load());
     };
 
     void attach();
 
     return () => {
-      if (unsubscribe) unsubscribe();
+      active = false;
+      unsubscribe?.();
     };
   }, []);
 
@@ -129,7 +134,7 @@ export default function SpacesIncomingRequestsPage() {
   }, [bookings, searchQuery]);
 
   const approve = async (bookingId: string) => {
-    await updateDoc(doc(db, 'bookings', bookingId), {
+    await updateRow('bookings', bookingId, {
       status: 'APPROVED',
       approvedBy: sessionSpaceName || 'Space Administrator',
       approvedAt: new Date().toISOString(),
@@ -141,7 +146,7 @@ export default function SpacesIncomingRequestsPage() {
     const reason = rejectReason[bookingId] ?? '';
     if (!reason.trim()) return;
 
-    await updateDoc(doc(db, 'bookings', bookingId), {
+    await updateRow('bookings', bookingId, {
       status: 'REJECTED',
       rejectedReason: reason,
       approvedBy: null,

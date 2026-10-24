@@ -1,21 +1,5 @@
-import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  runTransaction,
-  serverTimestamp,
-  setDoc,
-  Timestamp,
-  updateDoc,
-  where,
-} from 'firebase/firestore';
-
-import { db } from '@/lib/firebase';
+import { fetchRow, fetchRows, insertRow, updateRow } from '@/lib/supabase-query';
+import { getSupabaseClient } from '@/utils/supabase/client';
 import { GWALIOR_POLICE_STATIONS } from '@/lib/gwalior-police-stations';
 import type {
   AutomobileStationAccount,
@@ -25,17 +9,10 @@ import type {
   VehicleInventoryKey,
 } from '@/types/automobiles';
 
-const TRANSFER_REQUESTS_COLLECTION = 'automobile_transfer_requests';
-const STATION_FLEET_COLLECTION = 'station_fleet';
+const TRANSFER_REQUESTS_TABLE = 'automobile_transfer_requests';
+const STATION_FLEET_TABLE = 'station_fleet';
 
 const VEHICLE_KEYS: VehicleInventoryKey[] = ['PATROL_CAR', 'MOTORCYCLE', 'VAN', 'HEAVY'];
-
-const EMPTY_INVENTORY: VehicleInventoryByType = {
-  PATROL_CAR: 0,
-  MOTORCYCLE: 0,
-  VAN: 0,
-  HEAVY: 0,
-};
 
 const BASE_STATION_FLEET: VehicleInventoryByType = {
   PATROL_CAR: 20,
@@ -59,28 +36,23 @@ interface TransferRequestCreateInput {
   comments?: string;
 }
 
+interface StationFleetRow extends Record<string, unknown> {
+  stationId?: string;
+  stationName?: string;
+  availableByType?: unknown;
+  updatedAt?: string;
+}
+
 const toIso = (value: unknown, fallback: string): string => {
   if (typeof value === 'string' && value) {
     return value;
-  }
-
-  if (value instanceof Timestamp) {
-    return value.toDate().toISOString();
   }
 
   return fallback;
 };
 
 const toOptionalIso = (value: unknown): string | undefined => {
-  if (typeof value === 'string' && value) {
-    return value;
-  }
-
-  if (value instanceof Timestamp) {
-    return value.toDate().toISOString();
-  }
-
-  return undefined;
+  return typeof value === 'string' && value ? value : undefined;
 };
 
 const toInventory = (raw: unknown): VehicleInventoryByType => {
@@ -130,12 +102,6 @@ const mapTransferRequest = (
   };
 };
 
-const fleetDocRef = (stationId: string) => doc(db, STATION_FLEET_COLLECTION, stationId);
-
-const transferDocRef = (requestId: string) => doc(db, TRANSFER_REQUESTS_COLLECTION, requestId);
-
-const transferCollectionRef = () => collection(db, TRANSFER_REQUESTS_COLLECTION);
-
 const getDefaultFleetForStation = (stationId: string): VehicleInventoryByType => {
   // Deterministic per-station variance so all stations have usable inventory but not identical counts.
   const hash = Array.from(stationId).reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
@@ -149,34 +115,51 @@ const getDefaultFleetForStation = (stationId: string): VehicleInventoryByType =>
   };
 };
 
+const toFleetInventory = (
+  stationId: string,
+  stationName: string,
+  row: StationFleetRow | null,
+  nowIso: string
+): StationFleetInventory => {
+  if (!row) {
+    return {
+      stationId,
+      stationName,
+      availableByType: getDefaultFleetForStation(stationId),
+      updatedAt: nowIso,
+    };
+  }
+
+  return {
+    stationId: String(row.stationId ?? stationId),
+    stationName: String(row.stationName ?? stationName),
+    availableByType: toInventory(row.availableByType),
+    updatedAt: toIso(row.updatedAt, nowIso),
+  };
+};
+
 const seedFleetForKnownStationsOnce = async (): Promise<void> => {
   if (stationFleetSeedPromise) {
     return stationFleetSeedPromise;
   }
 
   stationFleetSeedPromise = (async () => {
-    const nowIso = new Date().toISOString();
-    await Promise.all(
-      GWALIOR_POLICE_STATIONS.map(async (station) => {
-        const ref = fleetDocRef(station.id);
-        const existing = await getDoc(ref);
-        if (existing.exists()) {
-          return;
-        }
+    const client = getSupabaseClient();
+    if (!client) return;
 
-        return setDoc(
-          ref,
-          {
-            stationId: station.id,
-            stationName: station.name,
-            availableByType: getDefaultFleetForStation(station.id),
-            updatedAt: nowIso,
-            updatedAtServer: serverTimestamp(),
-          },
-          { merge: true }
-        );
-      })
-    );
+    const nowIso = new Date().toISOString();
+    const rows = GWALIOR_POLICE_STATIONS.map((station) => ({
+      station_id: station.id,
+      station_name: station.name,
+      available_by_type: getDefaultFleetForStation(station.id),
+      updated_at: nowIso,
+    }));
+
+    const { error } = await client
+      .from(STATION_FLEET_TABLE)
+      .upsert(rows, { onConflict: 'station_id', ignoreDuplicates: true });
+
+    if (error) throw error;
   })();
 
   return stationFleetSeedPromise;
@@ -203,10 +186,10 @@ export async function getStationFleetInventory(
 ): Promise<StationFleetInventory> {
   await seedFleetForKnownStationsOnce();
 
-  const snap = await getDoc(fleetDocRef(stationId));
   const nowIso = new Date().toISOString();
+  const row = await fetchRow<StationFleetRow>(STATION_FLEET_TABLE, stationId, 'station_id');
 
-  if (!snap.exists()) {
+  if (!row) {
     const fallback: StationFleetInventory = {
       stationId,
       stationName,
@@ -214,28 +197,25 @@ export async function getStationFleetInventory(
       updatedAt: nowIso,
     };
 
-    await setDoc(
-      fleetDocRef(stationId),
-      {
-        stationId,
-        stationName,
-        availableByType: fallback.availableByType,
-        updatedAt: nowIso,
-        updatedAtServer: serverTimestamp(),
-      },
-      { merge: true }
-    );
+    const client = getSupabaseClient();
+    if (client) {
+      const { error } = await client.from(STATION_FLEET_TABLE).upsert(
+        {
+          station_id: stationId,
+          station_name: stationName,
+          available_by_type: fallback.availableByType,
+          updated_at: nowIso,
+        },
+        { onConflict: 'station_id' }
+      );
+
+      if (error) throw error;
+    }
 
     return fallback;
   }
 
-  const data = snap.data() as Record<string, unknown>;
-  return {
-    stationId: String(data.stationId ?? stationId),
-    stationName: String(data.stationName ?? stationName),
-    availableByType: toInventory(data.availableByType),
-    updatedAt: toIso(data.updatedAt, nowIso),
-  };
+  return toFleetInventory(stationId, stationName, row, nowIso);
 }
 
 export async function updateStationFleetInventory(
@@ -253,17 +233,20 @@ export async function updateStationFleetInventory(
   };
 
   const nowIso = new Date().toISOString();
-  await setDoc(
-    fleetDocRef(stationId),
-    {
-      stationId,
-      stationName,
-      availableByType: sanitized,
-      updatedAt: nowIso,
-      updatedAtServer: serverTimestamp(),
-    },
-    { merge: true }
-  );
+  const client = getSupabaseClient();
+  if (client) {
+    const { error } = await client.from(STATION_FLEET_TABLE).upsert(
+      {
+        station_id: stationId,
+        station_name: stationName,
+        available_by_type: sanitized,
+        updated_at: nowIso,
+      },
+      { onConflict: 'station_id' }
+    );
+
+    if (error) throw error;
+  }
 
   return {
     stationId,
@@ -274,7 +257,6 @@ export async function updateStationFleetInventory(
 }
 
 export async function createTransferRequest(input: TransferRequestCreateInput): Promise<string> {
-  const nowIso = new Date().toISOString();
   const requestedByType = normalizeInventoryInput(input.requestedByType);
 
   if (input.sourceStationId === input.destinationStationId) {
@@ -289,7 +271,7 @@ export async function createTransferRequest(input: TransferRequestCreateInput): 
     throw new Error('Select at least one vehicle quantity.');
   }
 
-  const created = await addDoc(transferCollectionRef(), {
+  const created = await insertRow<{ id: string }>(TRANSFER_REQUESTS_TABLE, {
     requesterUid: input.requester.uid,
     requesterEmail: input.requester.email,
     requesterStationId: input.requester.stationId,
@@ -304,10 +286,6 @@ export async function createTransferRequest(input: TransferRequestCreateInput): 
     purpose: input.purpose,
     comments: input.comments?.trim() || null,
     status: 'PENDING',
-    createdAt: nowIso,
-    updatedAt: nowIso,
-    createdAtServer: serverTimestamp(),
-    updatedAtServer: serverTimestamp(),
   });
 
   return created.id;
@@ -318,37 +296,22 @@ export async function listTransferRequestsForAccount(
 ): Promise<AutomobileTransferRequest[]> {
   const nowIso = new Date().toISOString();
 
-  if (account.role === 'ADMIN') {
-    const adminQuery = query(transferCollectionRef(), orderBy('createdAt', 'desc'), limit(300));
-    const snapshot = await getDocs(adminQuery);
-    return snapshot.docs.map((entry) =>
-      mapTransferRequest(entry.id, entry.data() as Record<string, unknown>, nowIso)
-    );
-  }
-
-  const requesterQuery = query(
-    transferCollectionRef(),
-    where('requesterStationId', '==', account.stationId),
-    limit(200)
-  );
-
-  const sourceQuery = query(
-    transferCollectionRef(),
-    where('sourceStationId', '==', account.stationId),
-    limit(200)
-  );
-
-  const [requesterSnapshot, sourceSnapshot] = await Promise.all([
-    getDocs(requesterQuery),
-    getDocs(sourceQuery),
-  ]);
+  const rows =
+    account.role === 'ADMIN'
+      ? await fetchRows<Record<string, unknown>>(TRANSFER_REQUESTS_TABLE, {
+          order: { column: 'created_at', ascending: false },
+          limit: 300,
+        })
+      : await fetchRows<Record<string, unknown>>(TRANSFER_REQUESTS_TABLE, {
+          or: `requester_station_id.eq.${account.stationId},source_station_id.eq.${account.stationId}`,
+          limit: 200,
+        });
 
   const merged = new Map<string, AutomobileTransferRequest>();
-  for (const entry of [...requesterSnapshot.docs, ...sourceSnapshot.docs]) {
-    merged.set(
-      entry.id,
-      mapTransferRequest(entry.id, entry.data() as Record<string, unknown>, nowIso)
-    );
+  for (const row of rows) {
+    const id = String(row.id ?? '');
+    if (!id) continue;
+    merged.set(id, mapTransferRequest(id, row, nowIso));
   }
 
   return [...merged.values()].sort((left, right) => {
@@ -360,95 +323,20 @@ export async function approveTransferRequest(
   requestId: string,
   reviewer: AutomobileStationAccount
 ): Promise<void> {
-  await runTransaction(db, async (transaction) => {
-    const requestRef = transferDocRef(requestId);
-    const requestSnap = await transaction.get(requestRef);
+  const client = getSupabaseClient();
+  if (!client) throw new Error('Supabase is not configured.');
 
-    if (!requestSnap.exists()) {
-      throw new Error('Transfer request not found.');
-    }
-
-    const data = requestSnap.data() as Record<string, unknown>;
-    const status = String(data.status ?? 'PENDING');
-    if (status !== 'PENDING') {
-      throw new Error('Only pending requests can be approved.');
-    }
-
-    const sourceStationId = String(data.sourceStationId ?? '');
-    const sourceStationName = String(data.sourceStationName ?? sourceStationId);
-    const destinationStationId = String(data.destinationStationId ?? '');
-    const destinationStationName = String(data.destinationStationName ?? destinationStationId);
-
-    if (reviewer.role !== 'ADMIN' && reviewer.stationId !== sourceStationId) {
-      throw new Error('Only the source station or admin can approve this request.');
-    }
-
-    const requestedByType = toInventory(data.requestedByType);
-
-    const sourceRef = fleetDocRef(sourceStationId);
-    const destinationRef = fleetDocRef(destinationStationId);
-
-    const [sourceSnap, destinationSnap] = await Promise.all([
-      transaction.get(sourceRef),
-      transaction.get(destinationRef),
-    ]);
-
-    const sourceInventory = sourceSnap.exists()
-      ? toInventory((sourceSnap.data() as Record<string, unknown>).availableByType)
-      : getDefaultFleetForStation(sourceStationId);
-    const destinationInventory = destinationSnap.exists()
-      ? toInventory((destinationSnap.data() as Record<string, unknown>).availableByType)
-      : getDefaultFleetForStation(destinationStationId);
-
-    for (const key of VEHICLE_KEYS) {
-      if (sourceInventory[key] < requestedByType[key]) {
-        throw new Error(`Insufficient ${key.replace(/_/g, ' ').toLowerCase()} at source station.`);
-      }
-    }
-
-    const nowIso = new Date().toISOString();
-    const nextSource: VehicleInventoryByType = { ...sourceInventory };
-    const nextDestination: VehicleInventoryByType = { ...destinationInventory };
-
-    for (const key of VEHICLE_KEYS) {
-      nextSource[key] -= requestedByType[key];
-      nextDestination[key] += requestedByType[key];
-    }
-
-    transaction.set(
-      sourceRef,
-      {
-        stationId: sourceStationId,
-        stationName: sourceStationName,
-        availableByType: nextSource,
-        updatedAt: nowIso,
-        updatedAtServer: serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    transaction.set(
-      destinationRef,
-      {
-        stationId: destinationStationId,
-        stationName: destinationStationName,
-        availableByType: nextDestination,
-        updatedAt: nowIso,
-        updatedAtServer: serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    transaction.update(requestRef, {
-      status: 'ALLOCATED',
-      reviewedByUid: reviewer.uid,
-      reviewedByEmail: reviewer.email,
-      reviewedAt: nowIso,
-      updatedAt: nowIso,
-      updatedAtServer: serverTimestamp(),
-      rejectionReason: null,
-    });
+  const { error } = await client.rpc('approve_transfer_request', {
+    p_request_id: requestId,
+    p_reviewer_uid: reviewer.uid,
+    p_reviewer_email: reviewer.email,
+    p_reviewer_station_id: reviewer.stationId,
+    p_reviewer_is_admin: reviewer.role === 'ADMIN',
   });
+
+  if (error) {
+    throw new Error(error.message || 'Unable to approve transfer request.');
+  }
 }
 
 export async function rejectTransferRequest(
@@ -456,33 +344,30 @@ export async function rejectTransferRequest(
   reviewer: AutomobileStationAccount,
   reason: string
 ): Promise<void> {
-  const requestRef = transferDocRef(requestId);
-  const requestSnap = await getDoc(requestRef);
+  const request = await fetchRow<Record<string, unknown>>(TRANSFER_REQUESTS_TABLE, requestId);
 
-  if (!requestSnap.exists()) {
+  if (!request) {
     throw new Error('Transfer request not found.');
   }
 
-  const data = requestSnap.data() as Record<string, unknown>;
-  const sourceStationId = String(data.sourceStationId ?? '');
+  const sourceStationId = String(request.sourceStationId ?? '');
 
   if (reviewer.role !== 'ADMIN' && reviewer.stationId !== sourceStationId) {
     throw new Error('Only the source station or admin can reject this request.');
   }
 
-  if (String(data.status ?? 'PENDING') !== 'PENDING') {
+  if (String(request.status ?? 'PENDING') !== 'PENDING') {
     throw new Error('Only pending requests can be rejected.');
   }
 
   const nowIso = new Date().toISOString();
-  await updateDoc(requestRef, {
+  await updateRow(TRANSFER_REQUESTS_TABLE, requestId, {
     status: 'REJECTED',
     reviewedByUid: reviewer.uid,
     reviewedByEmail: reviewer.email,
     reviewedAt: nowIso,
     rejectionReason: reason.trim() || 'Rejected by source station.',
     updatedAt: nowIso,
-    updatedAtServer: serverTimestamp(),
   });
 }
 
@@ -490,91 +375,18 @@ export async function completeTransferRequest(
   requestId: string,
   reviewer: AutomobileStationAccount
 ): Promise<void> {
-  await runTransaction(db, async (transaction) => {
-    const requestRef = transferDocRef(requestId);
-    const requestSnap = await transaction.get(requestRef);
+  const client = getSupabaseClient();
+  if (!client) throw new Error('Supabase is not configured.');
 
-    if (!requestSnap.exists()) {
-      throw new Error('Transfer request not found.');
-    }
-
-    const data = requestSnap.data() as Record<string, unknown>;
-    const status = String(data.status ?? 'PENDING');
-    if (status !== 'ALLOCATED' && status !== 'APPROVED') {
-      throw new Error('Only allocated requests can be marked completed.');
-    }
-
-    const destinationStationId = String(data.destinationStationId ?? '');
-    if (reviewer.role !== 'ADMIN' && reviewer.stationId !== destinationStationId) {
-      throw new Error('Only the destination station or admin can complete this request.');
-    }
-
-    const sourceStationId = String(data.sourceStationId ?? '');
-    const sourceStationName = String(data.sourceStationName ?? sourceStationId);
-    const destinationStationName = String(data.destinationStationName ?? destinationStationId);
-
-    const requestedByType = toInventory(data.requestedByType);
-
-    const sourceRef = fleetDocRef(sourceStationId);
-    const destinationRef = fleetDocRef(destinationStationId);
-
-    const [sourceSnap, destinationSnap] = await Promise.all([
-      transaction.get(sourceRef),
-      transaction.get(destinationRef),
-    ]);
-
-    const sourceInventory = sourceSnap.exists()
-      ? toInventory((sourceSnap.data() as Record<string, unknown>).availableByType)
-      : getDefaultFleetForStation(sourceStationId);
-    const destinationInventory = destinationSnap.exists()
-      ? toInventory((destinationSnap.data() as Record<string, unknown>).availableByType)
-      : getDefaultFleetForStation(destinationStationId);
-
-    const nextSource: VehicleInventoryByType = { ...sourceInventory };
-    const nextDestination: VehicleInventoryByType = { ...destinationInventory };
-
-    for (const key of VEHICLE_KEYS) {
-      if (destinationInventory[key] < requestedByType[key]) {
-        throw new Error('Destination inventory is lower than allocated quantity.');
-      }
-
-      nextSource[key] += requestedByType[key];
-      nextDestination[key] -= requestedByType[key];
-    }
-
-    const nowIso = new Date().toISOString();
-
-    transaction.set(
-      sourceRef,
-      {
-        stationId: sourceStationId,
-        stationName: sourceStationName,
-        availableByType: nextSource,
-        updatedAt: nowIso,
-        updatedAtServer: serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    transaction.set(
-      destinationRef,
-      {
-        stationId: destinationStationId,
-        stationName: destinationStationName,
-        availableByType: nextDestination,
-        updatedAt: nowIso,
-        updatedAtServer: serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    transaction.update(requestRef, {
-      status: 'COMPLETED',
-      updatedAt: nowIso,
-      updatedAtServer: serverTimestamp(),
-      completedByUid: reviewer.uid,
-      completedByEmail: reviewer.email,
-      completedAt: nowIso,
-    });
+  const { error } = await client.rpc('complete_transfer_request', {
+    p_request_id: requestId,
+    p_reviewer_uid: reviewer.uid,
+    p_reviewer_email: reviewer.email,
+    p_reviewer_station_id: reviewer.stationId,
+    p_reviewer_is_admin: reviewer.role === 'ADMIN',
   });
+
+  if (error) {
+    throw new Error(error.message || 'Unable to complete transfer request.');
+  }
 }

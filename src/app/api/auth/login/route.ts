@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server';
 
-import { AUTH_COOKIE_NAME, createDemoSession, parseLoginPayload } from '@/lib/auth-session';
-import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
+import { AUTH_COOKIE_NAME, createSessionCookieValue } from '@/lib/auth-session';
+import { createSupabaseServerClient } from '@/utils/supabase/server';
+
+import type { SessionCookiePayload } from '@/lib/auth-session';
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
 
-const setSessionCookie = (response: NextResponse, payload: Record<string, unknown>) => {
+const setSessionCookie = (response: NextResponse, payload: SessionCookiePayload) => {
   response.cookies.set({
     name: AUTH_COOKIE_NAME,
-    value: JSON.stringify(payload),
+    value: createSessionCookieValue(payload),
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
@@ -18,65 +20,74 @@ const setSessionCookie = (response: NextResponse, payload: Record<string, unknow
 };
 
 export async function POST(request: Request) {
+  let body: unknown;
+
   try {
-    const body = await request.json();
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ ok: false, message: 'Invalid request body.' }, { status: 400 });
+  }
 
-    if (body && typeof body.idToken === 'string' && body.idToken.length > 0) {
-      const adminAuth = getAdminAuth();
-      const decoded = await adminAuth.verifyIdToken(body.idToken);
-      const userRecord = await adminAuth.getUser(decoded.uid);
+  const accessToken =
+    body &&
+    typeof body === 'object' &&
+    typeof (body as { accessToken?: unknown }).accessToken === 'string'
+      ? (body as { accessToken: string }).accessToken
+      : '';
 
-      const profileSnap = await getAdminDb().collection('space_users').doc(decoded.uid).get();
-      const profile = (profileSnap.data() ?? {}) as {
-        openSpaceId?: string;
-        openSpaceName?: string;
-      };
+  if (!accessToken) {
+    return NextResponse.json(
+      { ok: false, message: 'A verified Supabase access token is required to sign in.' },
+      { status: 401 }
+    );
+  }
 
-      if (!profile.openSpaceId || !profile.openSpaceName) {
-        return NextResponse.json(
-          { ok: false, message: 'No linked open space profile found for this account.' },
-          { status: 403 }
-        );
-      }
+  try {
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(accessToken);
 
-      const response = NextResponse.json({
-        ok: true,
-        session: {
-          id: `firebase-${decoded.uid}`,
-          uid: decoded.uid,
-          name: userRecord.displayName ?? decoded.name ?? 'Space Admin',
-          email: userRecord.email ?? decoded.email ?? '',
-          role: 'MINISTRY',
-          openSpaceId: profile.openSpaceId,
-          openSpaceName: profile.openSpaceName,
-          signedInAt: new Date().toISOString(),
-        },
-      });
-
-      setSessionCookie(response, {
-        id: `firebase-${decoded.uid}`,
-        uid: decoded.uid,
-        role: 'MINISTRY',
-        name: userRecord.displayName ?? decoded.name ?? 'Space Admin',
-        email: userRecord.email ?? decoded.email ?? '',
-        openSpaceId: profile.openSpaceId,
-        openSpaceName: profile.openSpaceName,
-      });
-
-      return response;
+    if (authError || !user) {
+      return NextResponse.json({ ok: false, message: 'Unable to sign in.' }, { status: 401 });
     }
 
-    const payload = parseLoginPayload(body);
-    const session = createDemoSession(payload);
+    const { data: profile } = await supabase
+      .from('space_users')
+      .select('*')
+      .eq('id', user.id)
+      .maybeSingle();
 
-    const response = NextResponse.json({ ok: true, session });
-    setSessionCookie(response, { id: session.id, role: session.role });
+    const openSpaceId = profile?.open_space_id as string | undefined;
+    const openSpaceName = profile?.open_space_name as string | undefined;
+
+    if (!openSpaceId || !openSpaceName) {
+      return NextResponse.json(
+        { ok: false, message: 'No linked open space profile found for this account.' },
+        { status: 403 }
+      );
+    }
+
+    const session = {
+      id: `supabase-${user.id}`,
+      uid: user.id,
+      name: (profile?.name as string | undefined) ?? user.user_metadata?.name ?? 'Space Admin',
+      email: user.email ?? '',
+      role: 'MINISTRY' as const,
+      openSpaceId,
+      openSpaceName,
+    };
+
+    const response = NextResponse.json({
+      ok: true,
+      session: { ...session, signedInAt: new Date().toISOString() },
+    });
+
+    setSessionCookie(response, session);
 
     return response;
   } catch {
-    return NextResponse.json(
-      { ok: false, message: 'Invalid login data. Provide valid name, email, and role.' },
-      { status: 400 }
-    );
+    return NextResponse.json({ ok: false, message: 'Unable to sign in.' }, { status: 401 });
   }
 }

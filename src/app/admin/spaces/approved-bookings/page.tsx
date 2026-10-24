@@ -1,13 +1,13 @@
 'use client';
 
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
 
 import type { BookingStatus } from '@/types/spaces';
 
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { db, isFirebaseReady } from '@/lib/firebase';
+import { fetchRows, subscribeToTable } from '@/lib/supabase-query';
+import { isSupabaseConfigured } from '@/utils/supabase/client';
 
 interface ApprovedBooking {
   id: string;
@@ -39,43 +39,60 @@ export default function AdminSpacesApprovedBookingsPage() {
   const [loadMessage, setLoadMessage] = useState('');
 
   useEffect(() => {
-    if (!isFirebaseReady) {
-      setLoadMessage('Firebase is not configured for approved bookings feed.');
+    if (!isSupabaseConfigured) {
+      setLoadMessage('Supabase is not configured for the approved bookings feed.');
       return;
     }
 
-    const bookingsQuery = query(collection(db, 'bookings'), where('status', '==', 'APPROVED'));
-    const unsubscribe = onSnapshot(bookingsQuery, (snapshot) => {
-      const next = snapshot.docs
-        .map((docSnap) => {
-          const data = docSnap.data() as Record<string, unknown>;
-          const startRaw = (data.startTime ?? data.startDateTime ?? '') as string;
-          const endRaw = (data.endTime ?? data.endDateTime ?? '') as string;
+    let active = true;
 
-          return {
-            id: docSnap.id,
-            bookingId: (data.bookingId as string) ?? `BK-${docSnap.id.slice(0, 8).toUpperCase()}`,
-            spaceId: (data.spaceId as string) ?? '-',
-            spaceName: (data.spaceName as string) ?? '-',
-            bookedByName: (data.bookedByName as string) ?? '-',
-            bookedBy: (data.bookedBy as string) ?? '-',
-            organizationName: (data.organizationName as string) ?? undefined,
-            purpose: (data.purpose as string) ?? '-',
-            expectedAttendees: Number(data.expectedAttendees ?? 0),
-            status: ((data.status as string) ?? 'APPROVED').toUpperCase() as BookingStatus,
-            startDateTime: startRaw,
-            endDateTime: endRaw,
-            approvedBy: (data.approvedBy as string) ?? undefined,
-            approvedAt: (data.approvedAt as string) ?? undefined,
-          } satisfies ApprovedBooking;
-        })
-        .sort((a, b) => a.bookingId.localeCompare(b.bookingId));
+    const load = async () => {
+      try {
+        const rows = await fetchRows<Record<string, unknown>>('bookings', {
+          filters: [{ column: 'status', value: 'APPROVED' }],
+        });
 
-      setBookings(next);
-      setLoadMessage('');
-    });
+        if (!active) return;
 
-    return () => unsubscribe();
+        const next = rows
+          .map((data) => {
+            const id = String(data.id ?? '');
+            const startRaw = String(data.startTime ?? data.startDateTime ?? '');
+            const endRaw = String(data.endTime ?? data.endDateTime ?? '');
+
+            return {
+              id,
+              bookingId: (data.bookingId as string) ?? `BK-${id.slice(0, 8).toUpperCase()}`,
+              spaceId: (data.spaceId as string) ?? '-',
+              spaceName: (data.spaceName as string) ?? '-',
+              bookedByName: (data.bookedByName as string) ?? '-',
+              bookedBy: (data.bookedBy as string) ?? '-',
+              organizationName: (data.organizationName as string) ?? undefined,
+              purpose: (data.purpose as string) ?? '-',
+              expectedAttendees: Number(data.expectedAttendees ?? 0),
+              status: ((data.status as string) ?? 'APPROVED').toUpperCase() as BookingStatus,
+              startDateTime: startRaw,
+              endDateTime: endRaw,
+              approvedBy: (data.approvedBy as string) ?? undefined,
+              approvedAt: (data.approvedAt as string) ?? undefined,
+            } satisfies ApprovedBooking;
+          })
+          .sort((a, b) => a.bookingId.localeCompare(b.bookingId));
+
+        setBookings(next);
+        setLoadMessage('');
+      } catch {
+        if (active) setLoadMessage('Unable to load approved bookings right now.');
+      }
+    };
+
+    void load();
+    const unsubscribe = subscribeToTable('bookings', () => void load());
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   const filteredBookings = useMemo(() => {

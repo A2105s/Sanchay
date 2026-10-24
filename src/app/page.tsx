@@ -1,6 +1,5 @@
 'use client';
 
-import { collection, onSnapshot } from 'firebase/firestore';
 import {
   ArrowRight,
   Building2,
@@ -19,7 +18,8 @@ import { GradientBlinds } from '@/components/effects/GradientBlinds';
 import { AssetPassportCard } from '@/components/nationtrack/AssetPassportCard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { db, isFirebaseReady } from '@/lib/firebase';
+import { fetchRows, subscribeToTable } from '@/lib/supabase-query';
+import { isSupabaseConfigured } from '@/utils/supabase/client';
 import { nationTrackService } from '@/lib/nationtrack-service';
 import type { AssetPassport, DashboardMetrics } from '@/types/nationtrack';
 
@@ -226,70 +226,57 @@ export default function HomePage() {
       void loadModuleAssets();
     }, 20_000);
 
-    let unsubAssets: (() => void) | null = null;
-    let unsubSpaces: (() => void) | null = null;
-    let unsubVehicles: (() => void) | null = null;
-    let unsubBookings: (() => void) | null = null;
+    let active = true;
+    let unsubscribers: Array<() => void> = [];
 
-    if (isFirebaseReady) {
-      unsubAssets = onSnapshot(
-        collection(db, 'asset_passports'),
-        (snapshot) => {
-          passportAssets = snapshot.docs.map((docSnap) => docSnap.data() as GenericDoc);
-          recomputeLiveDashboard();
-        },
-        () => {
-          passportAssets = [];
-          recomputeLiveDashboard();
-        }
-      );
+    const loadTable = async (table: string, assign: (rows: GenericDoc[]) => void) => {
+      try {
+        const rows = await fetchRows<GenericDoc>(table);
+        if (!active) return;
+        assign(rows);
+      } catch {
+        if (!active) return;
+        assign([]);
+      }
 
-      unsubSpaces = onSnapshot(
-        collection(db, 'spaces'),
-        (snapshot) => {
-          realtimeSpaces = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-          recomputeLiveDashboard();
-        },
-        () => {
-          realtimeSpaces = [];
-          recomputeLiveDashboard();
-        }
-      );
+      recomputeLiveDashboard();
+    };
 
-      unsubVehicles = onSnapshot(
-        collection(db, 'vehicles'),
-        (snapshot) => {
-          realtimeVehicles = snapshot.docs.map((docSnap) => ({
-            id: docSnap.id,
-            ...docSnap.data(),
-          }));
-          recomputeLiveDashboard();
-        },
-        () => {
-          realtimeVehicles = [];
-          recomputeLiveDashboard();
-        }
-      );
+    if (isSupabaseConfigured) {
+      const loadAssets = () =>
+        loadTable('asset_passports', (rows) => {
+          passportAssets = rows;
+        });
+      const loadSpaces = () =>
+        loadTable('spaces', (rows) => {
+          realtimeSpaces = rows;
+        });
+      const loadVehicles = () =>
+        loadTable('vehicles', (rows) => {
+          realtimeVehicles = rows;
+        });
+      const loadBookings = () =>
+        loadTable('bookings', (rows) => {
+          bookings = rows;
+        });
 
-      unsubBookings = onSnapshot(
-        collection(db, 'bookings'),
-        (snapshot) => {
-          bookings = snapshot.docs.map((docSnap) => docSnap.data() as GenericDoc);
-          recomputeLiveDashboard();
-        },
-        () => {
-          bookings = [];
-          recomputeLiveDashboard();
-        }
-      );
+      void loadAssets();
+      void loadSpaces();
+      void loadVehicles();
+      void loadBookings();
+
+      unsubscribers = [
+        subscribeToTable('asset_passports', () => void loadAssets()),
+        subscribeToTable('spaces', () => void loadSpaces()),
+        subscribeToTable('vehicles', () => void loadVehicles()),
+        subscribeToTable('bookings', () => void loadBookings()),
+      ];
     }
 
     return () => {
+      active = false;
       globalThis.clearInterval(moduleAssetsInterval);
-      unsubAssets?.();
-      unsubSpaces?.();
-      unsubVehicles?.();
-      unsubBookings?.();
+      unsubscribers.forEach((unsubscribe) => unsubscribe());
     };
   }, []);
 

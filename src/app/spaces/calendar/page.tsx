@@ -1,13 +1,13 @@
 'use client';
 
-import { collection, onSnapshot } from 'firebase/firestore';
 import { Activity, CalendarDays, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
-import { db, isFirebaseReady } from '@/lib/firebase';
+import { fetchRows, subscribeToTable } from '@/lib/supabase-query';
+import { isSupabaseConfigured } from '@/utils/supabase/client';
 import type { BookingStatus, Space } from '@/types/spaces';
 
 interface SpacesResponse {
@@ -131,36 +131,54 @@ export default function SpacesCalendarPage() {
   }, []);
 
   useEffect(() => {
-    if (!isFirebaseReady) {
-      setLoadMessage('Firebase is not configured for live booking calendar sync.');
+    if (!isSupabaseConfigured) {
+      setLoadMessage('Supabase is not configured for live booking calendar sync.');
       return;
     }
 
-    const unsubscribe = onSnapshot(collection(db, 'bookings'), (snapshot) => {
-      const next = snapshot.docs
-        .map((docSnap) => {
-          const data = docSnap.data() as Record<string, unknown>;
-          const startRaw = (data.startTime ?? data.startDateTime ?? '') as string;
-          const endRaw = (data.endTime ?? data.endDateTime ?? '') as string;
+    let active = true;
 
-          return {
-            id: docSnap.id,
-            bookingId: (data.bookingId as string) ?? `BK-${docSnap.id.slice(0, 8).toUpperCase()}`,
-            spaceName: ((data.spaceName as string) ?? '-').trim(),
-            purpose: (data.purpose as string) ?? '-',
-            status: ((data.status as string) ?? 'PENDING').toUpperCase() as BookingStatus,
-            startDateTime: startRaw,
-            endDateTime: endRaw,
-            expectedAttendees: Number(data.expectedAttendees ?? 0),
-          } satisfies CalendarBooking;
-        })
-        .sort((a, b) => a.startDateTime.localeCompare(b.startDateTime));
+    const load = async () => {
+      try {
+        const rows = await fetchRows<Record<string, unknown>>('bookings', {
+          order: { column: 'start_date_time', ascending: true },
+        });
 
-      setBookings(next);
-      setLoadMessage('');
-    });
+        if (!active) return;
 
-    return () => unsubscribe();
+        const next = rows
+          .map((data) => {
+            const id = String(data.id ?? '');
+            const startRaw = String(data.startTime ?? data.startDateTime ?? '');
+            const endRaw = String(data.endTime ?? data.endDateTime ?? '');
+
+            return {
+              id,
+              bookingId: (data.bookingId as string) ?? `BK-${id.slice(0, 8).toUpperCase()}`,
+              spaceName: String(data.spaceName ?? '-').trim(),
+              purpose: (data.purpose as string) ?? '-',
+              status: ((data.status as string) ?? 'PENDING').toUpperCase() as BookingStatus,
+              startDateTime: startRaw,
+              endDateTime: endRaw,
+              expectedAttendees: Number(data.expectedAttendees ?? 0),
+            } satisfies CalendarBooking;
+          })
+          .sort((a, b) => a.startDateTime.localeCompare(b.startDateTime));
+
+        setBookings(next);
+        setLoadMessage('');
+      } catch {
+        if (active) setLoadMessage('Unable to load live bookings right now.');
+      }
+    };
+
+    void load();
+    const unsubscribe = subscribeToTable('bookings', () => void load());
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   const filtered = useMemo(() => {
@@ -263,7 +281,7 @@ export default function SpacesCalendarPage() {
             aria-live="polite"
           >
             <Activity className="h-3.5 w-3.5 animate-pulse" aria-hidden />
-            {isFirebaseReady ? 'Live sync active' : 'Live sync unavailable'}
+            {isSupabaseConfigured ? 'Live sync active' : 'Live sync unavailable'}
           </div>
         </div>
 

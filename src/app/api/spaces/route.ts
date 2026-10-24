@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { getAdminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
 import { getLookupData, listSpaces } from '@/lib/spaces-service';
+import { createSupabaseServerClient } from '@/utils/supabase/server';
 import type { SpaceListFilters } from '@/types/spaces';
 
 const parseBoolean = (value: string | null): boolean | undefined => {
@@ -28,22 +28,24 @@ export async function GET(request: NextRequest) {
   const data = listSpaces(filters);
   let verifiedSpaceIds: string[] = [];
 
-  if (isFirebaseAdminConfigured) {
-    try {
-      const snapshot = await getAdminDb().collection('space_users').get();
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data: accounts, error } = await supabase.from('space_users').select('open_space_id');
+
+    if (!error) {
       const uniqueIds = new Set<string>();
 
-      snapshot.forEach((doc) => {
-        const openSpaceId = doc.get('openSpaceId');
+      for (const account of accounts ?? []) {
+        const openSpaceId = account.open_space_id;
         if (typeof openSpaceId === 'string' && openSpaceId.length > 0) {
           uniqueIds.add(openSpaceId);
         }
-      });
+      }
 
       verifiedSpaceIds = Array.from(uniqueIds);
-    } catch {
-      verifiedSpaceIds = [];
     }
+  } catch {
+    verifiedSpaceIds = [];
   }
 
   return NextResponse.json({

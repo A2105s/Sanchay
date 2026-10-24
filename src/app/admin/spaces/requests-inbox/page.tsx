@@ -1,12 +1,12 @@
 'use client';
 
-import { collection, doc, onSnapshot, query, updateDoc, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { db, isFirebaseReady } from '@/lib/firebase';
+import { fetchRows, subscribeToTable, updateRow } from '@/lib/supabase-query';
+import { isSupabaseConfigured } from '@/utils/supabase/client';
 import type { BookingStatus } from '@/types/spaces';
 
 interface AdminBooking {
@@ -40,43 +40,60 @@ export default function AdminSpacesRequestsInboxPage() {
   const [actionMessage, setActionMessage] = useState('');
 
   useEffect(() => {
-    if (!isFirebaseReady) {
-      setLoadMessage('Firebase is not configured for live requests inbox.');
+    if (!isSupabaseConfigured) {
+      setLoadMessage('Supabase is not configured for the live requests inbox.');
       return;
     }
 
-    const bookingsQuery = query(collection(db, 'bookings'), where('status', '==', 'PENDING'));
-    const unsubscribe = onSnapshot(bookingsQuery, (snapshot) => {
-      const next = snapshot.docs
-        .map((docSnap) => {
-          const data = docSnap.data() as Record<string, unknown>;
-          const startRaw = (data.startTime ?? data.startDateTime ?? '') as string;
-          const endRaw = (data.endTime ?? data.endDateTime ?? '') as string;
+    let active = true;
 
-          return {
-            id: docSnap.id,
-            bookingId: (data.bookingId as string) ?? `BK-${docSnap.id.slice(0, 8).toUpperCase()}`,
-            spaceId: (data.spaceId as string) ?? '-',
-            spaceName: (data.spaceName as string) ?? '-',
-            bookedByName: (data.bookedByName as string) ?? '-',
-            bookedBy: (data.bookedBy as string) ?? '-',
-            organizationName: (data.organizationName as string) ?? undefined,
-            purpose: (data.purpose as string) ?? '-',
-            expectedAttendees: Number(data.expectedAttendees ?? 0),
-            status: ((data.status as string) ?? 'PENDING').toUpperCase() as BookingStatus,
-            startDateTime: startRaw,
-            endDateTime: endRaw,
-            approvedBy: (data.approvedBy as string) ?? undefined,
-            rejectedReason: (data.rejectedReason as string) ?? undefined,
-          } satisfies AdminBooking;
-        })
-        .sort((a, b) => a.bookingId.localeCompare(b.bookingId));
+    const load = async () => {
+      try {
+        const rows = await fetchRows<Record<string, unknown>>('bookings', {
+          filters: [{ column: 'status', value: 'PENDING' }],
+        });
 
-      setBookings(next);
-      setLoadMessage('');
-    });
+        if (!active) return;
 
-    return () => unsubscribe();
+        const next = rows
+          .map((data) => {
+            const id = String(data.id ?? '');
+            const startRaw = String(data.startTime ?? data.startDateTime ?? '');
+            const endRaw = String(data.endTime ?? data.endDateTime ?? '');
+
+            return {
+              id,
+              bookingId: (data.bookingId as string) ?? `BK-${id.slice(0, 8).toUpperCase()}`,
+              spaceId: (data.spaceId as string) ?? '-',
+              spaceName: (data.spaceName as string) ?? '-',
+              bookedByName: (data.bookedByName as string) ?? '-',
+              bookedBy: (data.bookedBy as string) ?? '-',
+              organizationName: (data.organizationName as string) ?? undefined,
+              purpose: (data.purpose as string) ?? '-',
+              expectedAttendees: Number(data.expectedAttendees ?? 0),
+              status: ((data.status as string) ?? 'PENDING').toUpperCase() as BookingStatus,
+              startDateTime: startRaw,
+              endDateTime: endRaw,
+              approvedBy: (data.approvedBy as string) ?? undefined,
+              rejectedReason: (data.rejectedReason as string) ?? undefined,
+            } satisfies AdminBooking;
+          })
+          .sort((a, b) => a.bookingId.localeCompare(b.bookingId));
+
+        setBookings(next);
+        setLoadMessage('');
+      } catch {
+        if (active) setLoadMessage('Unable to load requests right now.');
+      }
+    };
+
+    void load();
+    const unsubscribe = subscribeToTable('bookings', () => void load());
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   const pending = bookings.filter((booking) => booking.status === 'PENDING');
@@ -90,7 +107,7 @@ export default function AdminSpacesRequestsInboxPage() {
     });
 
     if (!response.ok) {
-      await updateDoc(doc(db, 'bookings', id), {
+      await updateRow('bookings', id, {
         status: 'APPROVED',
         approvedBy: 'Admin Panel',
         approvedAt: new Date().toISOString(),
@@ -113,7 +130,7 @@ export default function AdminSpacesRequestsInboxPage() {
     });
 
     if (!response.ok) {
-      await updateDoc(doc(db, 'bookings', id), {
+      await updateRow('bookings', id, {
         status: 'REJECTED',
         rejectedReason: reason,
         rejectedBy: 'Admin Panel',

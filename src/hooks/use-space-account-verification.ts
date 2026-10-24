@@ -1,9 +1,9 @@
 'use client';
 
-import { collection, onSnapshot } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
 
-import { db } from '@/lib/firebase';
+import { fetchRows, subscribeToTable } from '@/lib/supabase-query';
+import { isSupabaseConfigured } from '@/utils/supabase/client';
 import type { Space } from '@/types/spaces';
 
 interface SpaceUserRecord {
@@ -18,29 +18,51 @@ export function useSpaceAccountVerification() {
   const [verifiedSpaceNames, setVerifiedSpaceNames] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'space_users'), (snapshot) => {
-      const nextIds = new Set<string>();
-      const nextNames = new Set<string>();
+    // Without Supabase config the query throws and takes the whole /spaces page down.
+    if (!isSupabaseConfigured) return;
 
-      for (const doc of snapshot.docs) {
-        const data = doc.data() as SpaceUserRecord;
-        const id = data.openSpaceId?.trim();
-        const name = data.openSpaceName?.trim();
+    let active = true;
 
-        if (id) {
-          nextIds.add(id);
+    const load = async () => {
+      try {
+        const rows = await fetchRows<SpaceUserRecord>('space_users', {
+          select: 'open_space_id, open_space_name',
+        });
+
+        if (!active) return;
+
+        const nextIds = new Set<string>();
+        const nextNames = new Set<string>();
+
+        for (const row of rows) {
+          const id = row.openSpaceId?.trim();
+          const name = row.openSpaceName?.trim();
+
+          if (id) {
+            nextIds.add(id);
+          }
+
+          if (name) {
+            nextNames.add(normalize(name));
+          }
         }
 
-        if (name) {
-          nextNames.add(normalize(name));
-        }
+        setVerifiedSpaceIds(nextIds);
+        setVerifiedSpaceNames(nextNames);
+      } catch {
+        if (!active) return;
+        setVerifiedSpaceIds(new Set());
+        setVerifiedSpaceNames(new Set());
       }
+    };
 
-      setVerifiedSpaceIds(nextIds);
-      setVerifiedSpaceNames(nextNames);
-    });
+    void load();
+    const unsubscribe = subscribeToTable('space_users', () => void load());
 
-    return () => unsubscribe();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   const isVerifiedSpace = useMemo(() => {

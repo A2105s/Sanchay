@@ -1,21 +1,5 @@
 'use client';
 
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  updateProfile,
-} from 'firebase/auth';
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  serverTimestamp,
-  setDoc,
-  where,
-} from 'firebase/firestore';
 import { Building2, LogIn, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -24,15 +8,19 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { auth, db, isFirebaseReady, missingFirebaseClientKeys } from '@/lib/firebase';
+import {
+  getSupabaseClient,
+  isSupabaseConfigured,
+  missingSupabaseClientKeys,
+} from '@/utils/supabase/client';
 import { GWALIOR_POLICE_STATIONS } from '@/lib/gwalior-police-stations';
 
-const getFirebaseMissingKeyMessage = () => {
-  if (missingFirebaseClientKeys.length === 0) {
-    return 'Firebase is not configured.';
+const getSupabaseMissingKeyMessage = () => {
+  if (missingSupabaseClientKeys.length === 0) {
+    return 'Supabase is not configured.';
   }
 
-  return `Firebase is not configured. Missing client keys: ${missingFirebaseClientKeys.join(', ')}`;
+  return `Supabase is not configured. Missing client keys: ${missingSupabaseClientKeys.join(', ')}`;
 };
 
 export default function AutomobilesAuthPage() {
@@ -57,8 +45,8 @@ export default function AutomobilesAuthPage() {
     setError(null);
     setSuccess(null);
 
-    if (!isFirebaseReady) {
-      setError(getFirebaseMissingKeyMessage());
+    if (!isSupabaseConfigured) {
+      setError(getSupabaseMissingKeyMessage());
       return;
     }
 
@@ -67,16 +55,31 @@ export default function AutomobilesAuthPage() {
       return;
     }
 
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setError(getSupabaseMissingKeyMessage());
+      return;
+    }
+
     try {
       setLoading(true);
-      const credential = await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
+      const { data: credentials, error: signInError } = await supabase.auth.signInWithPassword({
+        email: loginEmail.trim(),
+        password: loginPassword,
+      });
 
-      const profileSnap = await getDoc(doc(db, 'automobile_station_accounts', credential.user.uid));
-      const accountDoc = profileSnap.exists()
-        ? (profileSnap.data() as { stationId?: string })
-        : undefined;
-      if (accountDoc?.stationId !== loginStationId) {
-        await signOut(auth);
+      if (signInError) throw signInError;
+
+      const { data: accountDoc, error: accountError } = await supabase
+        .from('automobile_station_accounts')
+        .select('station_id')
+        .eq('id', credentials.user.id)
+        .maybeSingle();
+
+      if (accountError) throw accountError;
+
+      if (accountDoc?.station_id !== loginStationId) {
+        await supabase.auth.signOut();
         setError(
           'Selected station does not match this account. Please choose the correct station.'
         );
@@ -85,7 +88,12 @@ export default function AutomobilesAuthPage() {
 
       router.push('/automobiles');
     } catch (loginError) {
-      const message = loginError instanceof Error ? loginError.message : 'Unable to log in.';
+      const message =
+        loginError instanceof Error && /email not confirmed/i.test(loginError.message)
+          ? 'Please confirm your email address before logging in.'
+          : loginError instanceof Error
+            ? loginError.message
+            : 'Unable to log in.';
       setError(message);
     } finally {
       setLoading(false);
@@ -97,8 +105,8 @@ export default function AutomobilesAuthPage() {
     setError(null);
     setSuccess(null);
 
-    if (!isFirebaseReady) {
-      setError(getFirebaseMissingKeyMessage());
+    if (!isSupabaseConfigured) {
+      setError(getSupabaseMissingKeyMessage());
       return;
     }
 
@@ -108,58 +116,74 @@ export default function AutomobilesAuthPage() {
       return;
     }
 
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setError(getSupabaseMissingKeyMessage());
+      return;
+    }
+
     try {
       setLoading(true);
 
-      const stationLookup = query(
-        collection(db, 'automobile_station_accounts'),
-        where('stationId', '==', selectedStation.id)
-      );
-      const existing = await getDocs(stationLookup);
-      if (!existing.empty) {
+      const { data: existing, error: lookupError } = await supabase
+        .from('automobile_station_accounts')
+        .select('id')
+        .eq('station_id', selectedStation.id)
+        .limit(1);
+
+      if (lookupError) throw lookupError;
+
+      if (existing && existing.length > 0) {
         setError('An account for this station already exists. Please log in instead.');
         return;
       }
 
-      const credential = await createUserWithEmailAndPassword(
-        auth,
-        signupEmail.trim(),
-        signupPassword
-      );
-
-      await updateProfile(credential.user, {
-        displayName: selectedStation.name,
+      const { data: created, error: signUpError } = await supabase.auth.signUp({
+        email: signupEmail.trim(),
+        password: signupPassword,
+        options: { data: { name: selectedStation.name } },
       });
+
+      if (signUpError) throw signUpError;
+      if (!created.user) throw new Error('Unable to create account.');
 
       const nowIso = new Date().toISOString();
-      await setDoc(doc(db, 'automobile_station_accounts', credential.user.uid), {
-        uid: credential.user.uid,
-        email: credential.user.email ?? signupEmail.trim(),
-        stationId: selectedStation.id,
-        stationName: selectedStation.name,
-        role: 'STATION',
-        createdAt: nowIso,
-        updatedAt: nowIso,
-        createdAtServer: serverTimestamp(),
-        updatedAtServer: serverTimestamp(),
-      });
-
-      await setDoc(
-        doc(db, 'station_fleet', selectedStation.id),
+      const { error: accountError } = await supabase.from('automobile_station_accounts').upsert(
         {
-          stationId: selectedStation.id,
-          stationName: selectedStation.name,
-          availableByType: {
+          id: created.user.id,
+          email: created.user.email ?? signupEmail.trim(),
+          station_id: selectedStation.id,
+          station_name: selectedStation.name,
+          role: 'STATION',
+          created_at: nowIso,
+          updated_at: nowIso,
+        },
+        { onConflict: 'id' }
+      );
+
+      if (accountError) throw accountError;
+
+      const { error: fleetError } = await supabase.from('station_fleet').upsert(
+        {
+          station_id: selectedStation.id,
+          station_name: selectedStation.name,
+          available_by_type: {
             PATROL_CAR: 20,
             MOTORCYCLE: 12,
             VAN: 6,
             HEAVY: 4,
           },
-          updatedAt: nowIso,
-          updatedAtServer: serverTimestamp(),
+          updated_at: nowIso,
         },
-        { merge: true }
+        { onConflict: 'station_id', ignoreDuplicates: true }
       );
+
+      if (fleetError) throw fleetError;
+
+      if (!created.session) {
+        setSuccess('Station account created. Confirm your email address, then log in.');
+        return;
+      }
 
       setSuccess('Station account created successfully. Redirecting...');
       router.push('/automobiles');

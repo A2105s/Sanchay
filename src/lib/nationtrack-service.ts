@@ -1,16 +1,5 @@
-import {
-  collection,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  where,
-  type DocumentData,
-  type QueryConstraint,
-  type QueryDocumentSnapshot,
-} from 'firebase/firestore';
-
-import { db, isFirebaseReady } from '@/lib/firebase';
+import { fetchRows } from '@/lib/supabase-query';
+import { isSupabaseConfigured } from '@/utils/supabase/client';
 import type {
   AssetPassport,
   AssetStatus,
@@ -20,9 +9,9 @@ import type {
   DashboardMetrics,
 } from '@/types/nationtrack';
 
-const ASSETS_COLLECTION = 'asset_passports';
-const BOOKINGS_COLLECTION = 'bookings';
-const AUDIT_COLLECTION = 'audit_logs';
+const ASSETS_TABLE = 'asset_passports';
+const BOOKINGS_TABLE = 'bookings';
+const AUDIT_TABLE = 'audit_logs';
 
 const FALLBACK_DATE = new Date().toISOString();
 
@@ -36,106 +25,107 @@ const toIsoDate = (value: unknown): string => {
   return Number.isNaN(parsed.getTime()) ? FALLBACK_DATE : parsed.toISOString();
 };
 
-const mapAsset = (id: string, data: DocumentData): AssetPassport => ({
-  id,
-  assetId: data.assetId ?? `NT-DEMO-${id.slice(0, 6).toUpperCase()}`,
-  type: (data.type ?? 'VEHICLE') as AssetType,
-  subType: data.subType ?? 'AMBULANCE',
-  name: data.name ?? 'Untitled Asset',
-  department: data.department ?? 'Unknown Department',
-  district: data.location?.district ?? data.district ?? 'Gwalior',
-  address: data.location?.address ?? data.address ?? 'Unknown address',
-  coordinates: data.location?.coordinates ?? data.coordinates,
-  status: (data.status ?? 'ACTIVE') as AssetStatus,
-  metadata: data.metadata,
-  events: data.events ?? [],
-  auditHash: data.auditHash,
-  photos: data.photos ?? [],
-  qrCode: data.qrCode,
-  tags: data.tags ?? [],
-  isIdle: Boolean(data.isIdle),
-  createdAt: toIsoDate(data.createdAt),
-  updatedAt: toIsoDate(data.updatedAt),
-  lastActivityAt: toIsoDate(data.lastActivityAt ?? data.updatedAt),
-});
+const mapAsset = (id: string, data: Record<string, unknown>): AssetPassport => {
+  const location = data.location as
+    | { district?: string; address?: string; coordinates?: AssetPassport['coordinates'] }
+    | undefined;
 
-const mapBooking = (id: string, data: DocumentData): Booking => ({
+  return {
+    id,
+    assetId: (data.assetId as string) ?? `NT-DEMO-${id.slice(0, 6).toUpperCase()}`,
+    type: ((data.type as string) ?? 'VEHICLE') as AssetType,
+    subType: (data.subType as AssetPassport['subType']) ?? 'AMBULANCE',
+    name: (data.name as string) ?? 'Untitled Asset',
+    department: (data.department as string) ?? 'Unknown Department',
+    district: location?.district ?? (data.district as string) ?? 'Gwalior',
+    address: location?.address ?? (data.address as string) ?? 'Unknown address',
+    coordinates: location?.coordinates ?? (data.coordinates as AssetPassport['coordinates']),
+    status: ((data.status as string) ?? 'ACTIVE') as AssetStatus,
+    metadata: data.metadata as AssetPassport['metadata'],
+    events: (data.events as AssetPassport['events']) ?? [],
+    auditHash: data.auditHash as string | undefined,
+    photos: (data.photos as string[]) ?? [],
+    qrCode: data.qrCode as string | undefined,
+    tags: (data.tags as string[]) ?? [],
+    isIdle: Boolean(data.isIdle),
+    createdAt: toIsoDate(data.createdAt),
+    updatedAt: toIsoDate(data.updatedAt),
+    lastActivityAt: toIsoDate(data.lastActivityAt ?? data.updatedAt),
+  };
+};
+
+const mapBooking = (id: string, data: Record<string, unknown>): Booking => ({
   id,
-  spaceId: data.spaceId ?? 'unknown-space',
-  spaceName: data.spaceName ?? 'Unknown Space',
-  bookedBy: data.bookedBy ?? 'unknown-user',
-  bookedByName: data.bookedByName ?? 'Unknown User',
-  purpose: data.purpose ?? 'General usage',
-  organizationName: data.organizationName,
+  spaceId: (data.spaceId as string) ?? 'unknown-space',
+  spaceName: (data.spaceName as string) ?? 'Unknown Space',
+  bookedBy: (data.bookedBy as string) ?? 'unknown-user',
+  bookedByName: (data.bookedByName as string) ?? 'Unknown User',
+  purpose: (data.purpose as string) ?? 'General usage',
+  organizationName: data.organizationName as string | undefined,
   expectedAttendees: Number(data.expectedAttendees ?? 0),
-  startTime: toIsoDate(data.startTime),
-  endTime: toIsoDate(data.endTime),
-  status: data.status ?? 'PENDING',
-  approvedBy: data.approvedBy,
+  startTime: toIsoDate(data.startTime ?? data.startDateTime),
+  endTime: toIsoDate(data.endTime ?? data.endDateTime),
+  status: (data.status as Booking['status']) ?? 'PENDING',
+  approvedBy: data.approvedBy as string | undefined,
   approvedAt: data.approvedAt ? toIsoDate(data.approvedAt) : undefined,
-  rejectionReason: data.rejectionReason,
+  rejectionReason: (data.rejectionReason ?? data.rejectedReason) as string | undefined,
   checkinAt: data.checkinAt ? toIsoDate(data.checkinAt) : undefined,
   checkoutAt: data.checkoutAt ? toIsoDate(data.checkoutAt) : undefined,
-  qrToken: data.qrToken,
-  rating: data.rating,
-  feedback: data.feedback,
+  qrToken: data.qrToken as string | undefined,
+  rating: data.rating as Booking['rating'],
+  feedback: data.feedback as string | undefined,
   createdAt: toIsoDate(data.createdAt),
 });
 
-const mapAudit = (id: string, data: DocumentData): AuditLog => ({
+const mapAudit = (id: string, data: Record<string, unknown>): AuditLog => ({
   id,
-  assetId: data.assetId ?? 'unknown-asset',
-  eventId: data.eventId ?? id,
-  action: data.action ?? 'STATUS_CHANGE',
-  performedBy: data.performedBy ?? 'system',
-  performedByRole: data.performedByRole ?? 'ADMIN',
+  assetId: (data.assetId as string) ?? 'unknown-asset',
+  eventId: (data.eventId as string) ?? id,
+  action: (data.action as AuditLog['action']) ?? 'STATUS_CHANGE',
+  performedBy: (data.performedBy as string) ?? 'system',
+  performedByRole: (data.performedByRole as AuditLog['performedByRole']) ?? 'ADMIN',
   timestamp: toIsoDate(data.timestamp),
-  prevHash: data.prevHash ?? 'genesis',
-  hash: data.hash ?? 'pending-hash',
-  payload: data.payload ?? '{}',
+  prevHash: (data.prevHash as string) ?? 'genesis',
+  hash: (data.hash as string) ?? 'pending-hash',
+  payload: (data.payload as string) ?? '{}',
 });
 
-const fetchCollection = async (
-  collectionName: string,
-  constraints: QueryConstraint[] = []
-): Promise<DocumentData[]> => {
-  if (!isFirebaseReady) return [];
-  const snapshot = await getDocs(query(collection(db, collectionName), ...constraints));
-  return snapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => ({
-    id: doc.id,
-    ...doc.data(),
-  }));
-};
+const rowId = (row: Record<string, unknown>) => String(row.id ?? '');
 
 export const nationTrackService = {
   async getAssets(type?: AssetType): Promise<AssetPassport[]> {
-    if (!isFirebaseReady) return [];
-    const constraints: QueryConstraint[] = [orderBy('updatedAt', 'desc')];
-    if (type) constraints.unshift(where('type', '==', type));
-    const snapshot = await getDocs(query(collection(db, ASSETS_COLLECTION), ...constraints));
-    return snapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) =>
-      mapAsset(doc.id, doc.data())
-    );
+    if (!isSupabaseConfigured) return [];
+
+    const rows = await fetchRows<Record<string, unknown>>(ASSETS_TABLE, {
+      filters: type ? [{ column: 'type', value: type }] : [],
+      order: { column: 'updated_at', ascending: false },
+    });
+
+    return rows.map((row) => mapAsset(rowId(row), row));
   },
 
   async getBookings(limitCount = 50): Promise<Booking[]> {
-    if (!isFirebaseReady) return [];
-    const snapshot = await getDocs(
-      query(collection(db, BOOKINGS_COLLECTION), orderBy('createdAt', 'desc'), limit(limitCount))
-    );
-    return snapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) =>
-      mapBooking(doc.id, doc.data())
-    );
+    if (!isSupabaseConfigured) return [];
+
+    const rows = await fetchRows<Record<string, unknown>>(BOOKINGS_TABLE, {
+      order: { column: 'created_at', ascending: false },
+      limit: limitCount,
+    });
+
+    return rows.map((row) => mapBooking(rowId(row), row));
   },
 
   async getAuditLogs(limitCount = 100): Promise<AuditLog[]> {
-    if (!isFirebaseReady) return [];
-    const snapshot = await getDocs(
-      query(collection(db, AUDIT_COLLECTION), orderBy('timestamp', 'desc'), limit(limitCount))
-    );
-    return snapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) =>
-      mapAudit(doc.id, doc.data())
-    );
+    if (!isSupabaseConfigured) return [];
+
+    const rows = await fetchRows<Record<string, unknown>>(AUDIT_TABLE, {
+      select:
+        'id, asset_id, event_id, action, performed_by, performed_by_role, timestamp, prev_hash, hash, payload',
+      order: { column: 'timestamp', ascending: false },
+      limit: limitCount,
+    });
+
+    return rows.map((row) => mapAudit(rowId(row), row));
   },
 
   async getDashboardMetrics(): Promise<DashboardMetrics> {
@@ -151,10 +141,12 @@ export const nationTrackService = {
   },
 
   async getSeedFallbackCounts(): Promise<{ assets: number; bookings: number; auditLogs: number }> {
+    if (!isSupabaseConfigured) return { assets: 0, bookings: 0, auditLogs: 0 };
+
     const [assets, bookings, auditLogs] = await Promise.all([
-      fetchCollection(ASSETS_COLLECTION),
-      fetchCollection(BOOKINGS_COLLECTION),
-      fetchCollection(AUDIT_COLLECTION),
+      fetchRows<Record<string, unknown>>(ASSETS_TABLE, { select: 'id' }),
+      fetchRows<Record<string, unknown>>(BOOKINGS_TABLE, { select: 'id' }),
+      fetchRows<Record<string, unknown>>(AUDIT_TABLE, { select: 'id' }),
     ]);
 
     return {

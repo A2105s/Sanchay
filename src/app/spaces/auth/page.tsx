@@ -1,13 +1,12 @@
 'use client';
 
-import { getIdToken, signInWithEmailAndPassword, signOut, updateProfile } from 'firebase/auth';
 import { Building2, Loader2, LogIn, UserPlus } from 'lucide-react';
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { auth } from '@/lib/firebase';
+import { getSupabaseClient } from '@/utils/supabase/client';
 
 import type { Space } from '@/types/spaces';
 import type { FormEvent } from 'react';
@@ -20,6 +19,7 @@ interface SpacesResponse {
 interface AuthResponse {
   ok: boolean;
   message?: string;
+  requiresEmailConfirmation?: boolean;
 }
 
 const normalize = (value: string) => value.trim().toLowerCase();
@@ -49,7 +49,9 @@ export default function SpacesAuthPage() {
 
     const clearExistingSession = async () => {
       await fetch('/api/auth/logout', { method: 'POST' });
-      await signOut(auth).catch(() => undefined);
+      await getSupabaseClient()
+        ?.auth.signOut()
+        .catch(() => undefined);
     };
 
     void Promise.all([loadSpaces(), clearExistingSession()]);
@@ -65,14 +67,38 @@ export default function SpacesAuthPage() {
     setIsSubmitting(true);
     setStatus('Signing you in...');
 
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setStatus('Supabase is not configured.');
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
-      const credentials = await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
-      const idToken = await getIdToken(credentials.user, true);
+      const { data: credentials, error: signInError } = await supabase.auth.signInWithPassword({
+        email: loginEmail.trim(),
+        password: loginPassword,
+      });
+
+      if (signInError) {
+        setStatus(
+          /email not confirmed/i.test(signInError.message)
+            ? 'Please confirm your email address before signing in.'
+            : 'Invalid email or password, or your account is not linked to a registered space.'
+        );
+        return;
+      }
+
+      const accessToken = credentials.session?.access_token;
+      if (!accessToken) {
+        setStatus('Unable to start a session. Please try again.');
+        return;
+      }
 
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken }),
+        body: JSON.stringify({ accessToken }),
       });
 
       const payload = (await response.json()) as AuthResponse;
@@ -119,18 +145,40 @@ export default function SpacesAuthPage() {
         return;
       }
 
-      const credentials = await signInWithEmailAndPassword(
-        auth,
-        signupEmail.trim(),
-        signupPassword
-      );
-      await updateProfile(credentials.user, { displayName: name.trim() });
-      const idToken = await getIdToken(credentials.user, true);
+      if (signupPayload.requiresEmailConfirmation) {
+        setStatus(
+          signupPayload.message ?? 'Account created. Confirm your email address, then sign in.'
+        );
+        setMode('login');
+        return;
+      }
+
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        setStatus('Supabase is not configured.');
+        return;
+      }
+
+      const { data: credentials, error: signInError } = await supabase.auth.signInWithPassword({
+        email: signupEmail.trim(),
+        password: signupPassword,
+      });
+
+      if (signInError) {
+        setStatus('Account created but auto sign-in failed. Please sign in.');
+        return;
+      }
+
+      const accessToken = credentials.session?.access_token;
+      if (!accessToken) {
+        setStatus('Account created. Please sign in.');
+        return;
+      }
 
       const loginResponse = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken }),
+        body: JSON.stringify({ accessToken }),
       });
 
       const loginPayload = (await loginResponse.json()) as AuthResponse;
@@ -199,7 +247,7 @@ export default function SpacesAuthPage() {
               </li>
               <li className="flex items-start gap-2">
                 <UserPlus className="mt-0.5 h-4 w-4 text-emerald-300" aria-hidden />
-                Credentials saved in Firebase Auth and profile mapping in Firestore
+                Credentials saved in Supabase Auth and profile mapping in Postgres
               </li>
             </ul>
           </aside>

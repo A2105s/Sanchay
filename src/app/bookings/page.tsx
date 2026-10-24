@@ -95,7 +95,7 @@ export default function BookingsPage() {
           <div className="card-elevated mx-auto max-w-md p-16 text-center">
             <h2 className="text-lg font-semibold text-foreground">No bookings found</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Create bookings in Firestore collection bookings to see live records here.
+              Create bookings to see live records here.
             </p>
           </div>
         )}

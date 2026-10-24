@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 import { listSpaces } from '@/lib/spaces-service';
+import { createSupabaseServerClient } from '@/utils/supabase/server';
 
 const signupSchema = z.object({
   name: z.string().trim().min(2).max(80),
@@ -33,36 +33,50 @@ export async function POST(request: Request) {
       );
     }
 
-    const adminAuth = getAdminAuth();
-    const createdUser = await adminAuth.createUser({
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.auth.signUp({
       email: payload.email,
       password: payload.password,
-      displayName: payload.name,
-      emailVerified: false,
-      disabled: false,
+      options: {
+        data: {
+          name: payload.name,
+          open_space_id: matchedSpace.id,
+          open_space_name: matchedSpace.name,
+        },
+      },
     });
 
-    await getAdminDb().collection('space_users').doc(createdUser.uid).set(
+    if (error) throw error;
+
+    if (!data.user) {
+      throw new Error('Unable to create account at this time.');
+    }
+
+    const { error: profileError } = await supabase.from('space_users').upsert(
       {
-        uid: createdUser.uid,
+        id: data.user.id,
         name: payload.name,
         email: payload.email,
-        openSpaceId: matchedSpace.id,
-        openSpaceName: matchedSpace.name,
+        open_space_id: matchedSpace.id,
+        open_space_name: matchedSpace.name,
         role: 'SPACE_ADMIN',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       },
-      { merge: true }
+      { onConflict: 'id' }
     );
+
+    if (profileError) throw profileError;
 
     return NextResponse.json({
       ok: true,
-      message: 'Account created successfully. You can now sign in.',
+      message: data.session
+        ? 'Account created successfully. You can now sign in.'
+        : 'Account created. Confirm your email address, then sign in.',
+      requiresEmailConfirmation: !data.session,
       user: {
-        uid: createdUser.uid,
-        email: createdUser.email,
-        displayName: createdUser.displayName,
+        uid: data.user.id,
+        email: data.user.email,
+        displayName: payload.name,
         openSpaceId: matchedSpace.id,
         openSpaceName: matchedSpace.name,
       },
@@ -76,7 +90,8 @@ export async function POST(request: Request) {
     }
 
     const errorMessage =
-      error instanceof Error && /already exists|email-already-exists/i.test(error.message)
+      error instanceof Error &&
+      /already registered|already exists|user already/i.test(error.message)
         ? 'An account with this email already exists. Please sign in.'
         : 'Unable to create account at this time.';
 

@@ -1,6 +1,5 @@
 'use client';
 
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { CheckCircle2, Loader2, Plus, RefreshCcw } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -11,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { db, isFirebaseReady } from '@/lib/firebase';
+import { insertRow } from '@/lib/supabase-query';
+import { isSupabaseConfigured } from '@/utils/supabase/client';
 
 type RequestMode = 'booking' | 'create' | 'update';
 
@@ -102,8 +102,8 @@ export default function SubmitPage() {
     setError('');
     setSuccess('');
 
-    if (!isFirebaseReady) {
-      setError('Request submission is unavailable because Firebase is not configured.');
+    if (!isSupabaseConfigured) {
+      setError('Request submission is unavailable because Supabase is not configured.');
       return;
     }
 
@@ -120,7 +120,7 @@ export default function SubmitPage() {
         const startDateTime = toBookingDateTime(form.startTime);
         const endDateTime = toBookingDateTime(form.endTime);
 
-        await addDoc(collection(db, 'bookings'), {
+        await insertRow('bookings', {
           bookingId: `BK-${Date.now().toString(36).toUpperCase()}`,
           spaceId: form.spaceId.trim(),
           spaceName: form.spaceName.trim(),
@@ -137,10 +137,9 @@ export default function SubmitPage() {
           endTime: endDateTime,
           status: 'PENDING',
           createdAt: new Date().toISOString(),
-          createdAtTs: serverTimestamp(),
         });
       } else {
-        await addDoc(collection(db, 'space_requests'), {
+        await insertRow('space_requests', {
           requestType: mode,
           spaceId: form.spaceId.trim() || null,
           spaceName: form.spaceName.trim(),
@@ -156,7 +155,7 @@ export default function SubmitPage() {
           amenities: form.amenities,
           updateSummary: form.updateSummary.trim() || null,
           status: 'PENDING',
-          createdAt: serverTimestamp(),
+          createdAt: new Date().toISOString(),
         });
       }
 
