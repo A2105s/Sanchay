@@ -1,9 +1,9 @@
-# NationTrack Automobile Module Blueprint
+# Sanchay Automobile Module Blueprint
 
 ## 1) Recommended Monorepo Structure (Next.js + NestJS)
 
 ```text
-nationtrack/
+sanchay/
   apps/
     web/                                # Next.js 15 App Router frontend
       src/
@@ -28,7 +28,7 @@ nationtrack/
           automobiles.ts
       public/
         sw.js
-        NationTrack.png
+        Sanchay.png
       next.config.js
       package.json
     api/                                # NestJS backend service (target architecture)
@@ -323,7 +323,7 @@ Response:
 Response headers:
 
 - `Content-Type: application/pdf`
-- `Content-Disposition: attachment; filename="nationtrack-utilization.pdf"`
+- `Content-Disposition: attachment; filename="sanchay-utilization.pdf"`
 
 ## 4) Implemented Module Surface in This Repository
 

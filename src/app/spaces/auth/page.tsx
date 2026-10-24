@@ -221,13 +221,13 @@ export default function SpacesAuthPage() {
 
             <div className="flex items-center gap-3">
               <Image
-                src="/NationTrack.png"
-                alt="NationTrack logo"
+                src="/Sanchay.png"
+                alt="Sanchay logo"
                 width={40}
                 height={40}
                 priority
               />
-              <h1 className="text-2xl font-bold">NationTrack Spaces</h1>
+              <h1 className="text-2xl font-bold">Sanchay Spaces</h1>
             </div>
 
             <p className="mt-4 text-sm leading-6 text-slate-300">

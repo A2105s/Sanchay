@@ -55,7 +55,7 @@ const resolvePoliceStationImage = (stationName: string): string => {
     return 'https://i.ibb.co/vCxq2tB7/image.png';
   }
 
-  return '/NationTrack-placeholder.jpg';
+  return '/Sanchay-placeholder.jpg';
 };
 
 const panelVariants = {
@@ -107,7 +107,7 @@ export function PoliceStationPanel({
 }: Readonly<PoliceStationPanelProps>) {
   const isMobile = useIsMobile();
   const [selectedVehicleType, setSelectedVehicleType] = useState<StationVehicleType | null>(null);
-  const [panelImageSrc, setPanelImageSrc] = useState('/NationTrack-placeholder.jpg');
+  const [panelImageSrc, setPanelImageSrc] = useState('/Sanchay-placeholder.jpg');
 
   const vehicleTypeLabels: Record<StationVehicleType, string> = {
     PATROL: 'Patrol',
@@ -136,7 +136,7 @@ export function PoliceStationPanel({
 
   useEffect(() => {
     setPanelImageSrc(
-      station ? resolvePoliceStationImage(station.stationName) : '/NationTrack-placeholder.jpg'
+      station ? resolvePoliceStationImage(station.stationName) : '/Sanchay-placeholder.jpg'
     );
   }, [station]);
 
@@ -194,8 +194,8 @@ export function PoliceStationPanel({
                 unoptimized={panelImageSrc.startsWith('https://i.ibb.co/')}
                 referrerPolicy="no-referrer"
                 onError={() => {
-                  if (panelImageSrc !== '/NationTrack-placeholder.jpg') {
-                    setPanelImageSrc('/NationTrack-placeholder.jpg');
+                  if (panelImageSrc !== '/Sanchay-placeholder.jpg') {
+                    setPanelImageSrc('/Sanchay-placeholder.jpg');
                   }
                 }}
               />

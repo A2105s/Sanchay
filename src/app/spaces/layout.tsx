@@ -81,13 +81,13 @@ export default function SpacesLayout({
           <div className="flex h-16 items-center justify-between">
             <Link href="/" className="flex items-center gap-2.5" data-no-translate="true">
               <Image
-                src="/NationTrack.png"
-                alt="NationTrack logo"
+                src="/Sanchay.png"
+                alt="Sanchay logo"
                 width={36}
                 height={36}
                 priority
               />
-              <span className="text-lg font-bold leading-tight text-foreground">NationTrack</span>
+              <span className="text-lg font-bold leading-tight text-foreground">Sanchay</span>
             </Link>
 
             <nav className="flex items-center gap-1" aria-label="Primary navigation">

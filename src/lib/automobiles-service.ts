@@ -161,7 +161,7 @@ const createSeedVehicle = (
       idlePercent: 100,
     },
     maintenanceRiskScore: Math.min(99, 45 + (i % 12) * 4),
-    photoUrl: '/NationTrack-placeholder.jpg',
+    photoUrl: '/Sanchay-placeholder.jpg',
     specs: {
       fuelType:
         type.includes('JCB') || type.includes('Truck') || type.includes('Bus')

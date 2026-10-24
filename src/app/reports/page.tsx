@@ -4,8 +4,8 @@ import { Activity, AlertTriangle, Car, ClipboardList, Wrench } from 'lucide-reac
 import { useEffect, useState } from 'react';
 
 import { Skeleton } from '@/components/ui/skeleton';
-import { nationTrackService } from '@/lib/nationtrack-service';
-import type { DashboardMetrics } from '@/types/nationtrack';
+import { sanchayService } from '@/lib/sanchay-service';
+import type { DashboardMetrics } from '@/types/sanchay';
 
 export default function ReportsPage() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
@@ -14,7 +14,7 @@ export default function ReportsPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await nationTrackService.getDashboardMetrics();
+        const data = await sanchayService.getDashboardMetrics();
         setMetrics(data);
       } catch (error) {
         console.error('Failed to load reports metrics', error);

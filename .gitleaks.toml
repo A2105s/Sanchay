@@ -2,7 +2,7 @@
 # The default ruleset stays enabled. Allowlists below cover documented fake values only;
 # real credentials must never be added here.
 
-title = "NationTrack secret scan"
+title = "Sanchay secret scan"
 
 [extend]
 useDefault = true

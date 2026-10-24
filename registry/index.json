@@ -1,9 +1,9 @@
 {
   "$schema": "https://ui.shadcn.com/schema.json",
-  "name": "nationtrack",
+  "name": "sanchay",
   "version": "1.0.0",
-  "description": "NationTrack Design System - Operational governance interface components",
-  "author": "NationTrack Team",
+  "description": "Sanchay Design System - Operational governance interface components",
+  "author": "Sanchay Team",
   "license": "MIT",
   "components": [
     {
@@ -28,7 +28,7 @@
   "blocks": [],
   "themes": [
     {
-      "name": "nationtrack-light",
+      "name": "sanchay-light",
       "type": "registry:theme",
       "cssVars": {
         "light": {
@@ -52,7 +52,7 @@
       }
     },
     {
-      "name": "nationtrack-dark",
+      "name": "sanchay-dark",
       "type": "registry:theme",
       "cssVars": {
         "dark": {

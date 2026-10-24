@@ -5,8 +5,8 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { nationTrackService } from '@/lib/nationtrack-service';
-import type { AuditLog } from '@/types/nationtrack';
+import { sanchayService } from '@/lib/sanchay-service';
+import type { AuditLog } from '@/types/sanchay';
 
 export default function ApprovalEntriesPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -17,7 +17,7 @@ export default function ApprovalEntriesPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const data = await nationTrackService.getAuditLogs(200);
+        const data = await sanchayService.getAuditLogs(200);
         setLogs(data);
       } catch (error) {
         console.error('Failed to load audit monitor entries', error);

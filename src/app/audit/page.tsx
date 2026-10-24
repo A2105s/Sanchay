@@ -6,8 +6,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDate } from '@/lib/date-utils';
-import { nationTrackService } from '@/lib/nationtrack-service';
-import type { AuditLog } from '@/types/nationtrack';
+import { sanchayService } from '@/lib/sanchay-service';
+import type { AuditLog } from '@/types/sanchay';
 
 export default function AuditPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -17,7 +17,7 @@ export default function AuditPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await nationTrackService.getAuditLogs();
+        const data = await sanchayService.getAuditLogs();
         setLogs(data);
       } catch (error) {
         console.error('Failed to load audit logs', error);

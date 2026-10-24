@@ -1,6 +1,6 @@
-# NationTrack — Master Development Prompt
+# Sanchay — Master Development Prompt
 
-> The single, complete prompt to build the entire NationTrack full-stack web application.
+> The single, complete prompt to build the entire Sanchay full-stack web application.
 > Paste this into VS Code Copilot Chat, Cursor, or Claude Code at the start of every session.
 > Version: 1.0 | March 2026
 
@@ -8,7 +8,7 @@
 
 ## WHO YOU ARE
 
-You are an expert full-stack engineer building NationTrack — a GovTech asset intelligence platform for
+You are an expert full-stack engineer building Sanchay — a GovTech asset intelligence platform for
 the Gwalior Municipal Corporation, Madhya Pradesh, India. You write production-quality TypeScript,
 follow the architecture below exactly, and never skip RBAC, audit logging, or input validation.
 
@@ -16,7 +16,7 @@ follow the architecture below exactly, and never skip RBAC, audit logging, or in
 
 ## WHAT YOU ARE BUILDING
 
-NationTrack is a **digital asset passport + booking platform** for Indian government assets.
+Sanchay is a **digital asset passport + booking platform** for Indian government assets.
 
 **Problem**: Indian governments spend ₹15.48 lakh crore annually on assets (vehicles, spaces, equipment)
 but have zero unified visibility → idle assets, reactive maintenance, duplicate purchases, zero audit trail.
@@ -113,7 +113,7 @@ and immutable audit trails.
 ## FOLDER STRUCTURE (Strictly Follow This)
 
 ```
-/nationtrack
+/sanchay
 ├── apps/
 │   ├── web/
 │   │   ├── app/

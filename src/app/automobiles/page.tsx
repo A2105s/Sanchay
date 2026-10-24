@@ -229,7 +229,7 @@ export default function AutomobilesPage() {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
-      {/* Sidebar - Gmail inspired, NationTrack branded */}
+      {/* Sidebar - Gmail inspired, Sanchay branded */}
       <aside
         className={cn(
           'hidden h-full shrink-0 border-r border-border bg-muted/40 transition-[width] duration-300 md:flex md:flex-col',
@@ -256,9 +256,9 @@ export default function AutomobilesPage() {
             <Link
               href="/"
               className="inline-flex min-w-0 items-center gap-1.5"
-              aria-label="Go to NationTrack home"
+              aria-label="Go to Sanchay home"
             >
-              <Image src="/NationTrack.png" alt="NationTrack" width={20} height={20} priority />
+              <Image src="/Sanchay.png" alt="Sanchay" width={20} height={20} priority />
               <span className="truncate text-[0.9rem] font-semibold text-foreground">
                 Nation Track
               </span>

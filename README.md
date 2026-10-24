@@ -1,8 +1,8 @@
 <p align="center">
-	<img src="public/NationTrack.png" alt="NationTrack Logo" width="110" height="110" />
+	<img src="public/Sanchay.png" alt="Sanchay Logo" width="110" height="110" />
 </p>
 
-<h1 align="center">NationTrack</h1>
+<h1 align="center">Sanchay</h1>
 
 <p align="center"><strong>Public Asset Intelligence Platform for Operational Governance</strong></p>
 
@@ -21,9 +21,9 @@
 
 ---
 
-## About NationTrack
+## About Sanchay
 
-NationTrack is designed for government and operations teams that need a single digital surface for tracking, allocating, and auditing public assets.
+Sanchay is designed for government and operations teams that need a single digital surface for tracking, allocating, and auditing public assets.
 
 It connects:
 
@@ -33,7 +33,7 @@ It connects:
 - compliance and risk flags
 - report and export surfaces
 
-## Why NationTrack
+## Why Sanchay
 
 - **Cross-domain visibility:** Vehicles, spaces, and medical assets in one platform
 - **Operational control:** Structured approval paths and lifecycle state transitions

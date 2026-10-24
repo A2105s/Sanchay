@@ -6,8 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDate } from '@/lib/date-utils';
-import { nationTrackService } from '@/lib/nationtrack-service';
-import type { Booking } from '@/types/nationtrack';
+import { sanchayService } from '@/lib/sanchay-service';
+import type { Booking } from '@/types/sanchay';
 
 export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -17,7 +17,7 @@ export default function BookingsPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await nationTrackService.getBookings();
+        const data = await sanchayService.getBookings();
         setBookings(data);
       } catch (error) {
         console.error('Failed to load bookings', error);

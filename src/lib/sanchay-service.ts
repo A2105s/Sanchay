@@ -7,7 +7,7 @@ import type {
   AuditLog,
   Booking,
   DashboardMetrics,
-} from '@/types/nationtrack';
+} from '@/types/sanchay';
 
 const ASSETS_TABLE = 'asset_passports';
 const BOOKINGS_TABLE = 'bookings';
@@ -92,7 +92,7 @@ const mapAudit = (id: string, data: Record<string, unknown>): AuditLog => ({
 
 const rowId = (row: Record<string, unknown>) => String(row.id ?? '');
 
-export const nationTrackService = {
+export const sanchayService = {
   async getAssets(type?: AssetType): Promise<AssetPassport[]> {
     if (!isSupabaseConfigured) return [];
 

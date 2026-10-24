@@ -6,7 +6,7 @@ test.describe('Home Page', () => {
 
     await expect(page.getByRole('banner')).toBeVisible();
     await expect(
-      page.getByRole('banner').getByRole('link', { name: /NationTrack/i })
+      page.getByRole('banner').getByRole('link', { name: /Sanchay/i })
     ).toBeVisible();
     await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible();
   });

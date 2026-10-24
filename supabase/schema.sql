@@ -1,4 +1,4 @@
--- Sanchay / NationTrack — Supabase schema
+-- Sanchay / Sanchay — Supabase schema
 --
 -- Run this once in the Supabase SQL editor (Dashboard → SQL → New query)
 -- or with `supabase db execute --file supabase/schema.sql`.

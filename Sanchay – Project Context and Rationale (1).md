@@ -1,4 +1,4 @@
-# NationTrack – Project Context and Rationale
+# Sanchay – Project Context and Rationale
 
 ## 1. Background
 
@@ -8,7 +8,7 @@ Government press releases further show that effective public capital expenditure
 
 However, multiple studies on public land and assets in India highlight that there is **no reliable, central, up‑to‑date inventory** of public assets, which makes it difficult to identify idle or surplus assets and redeploy or monetise them.[web:36][web:49] At the city and department level, this translates into scattered spreadsheets, legacy applications and paper registers for vehicles, equipment, buildings and other assets.
 
-NationTrack is conceived as an **asset intelligence layer** that sits above existing systems and helps governments see, understand and optimise what they already own, instead of merely buying more.
+Sanchay is conceived as an **asset intelligence layer** that sits above existing systems and helps governments see, understand and optimise what they already own, instead of merely buying more.
 
 ---
 
@@ -42,7 +42,7 @@ Across departments (transport, health, urban local bodies, education), recurring
 SDG 11 calls for cities that are **inclusive, safe, resilient and sustainable**, highlighting the need for reliable infrastructure, efficient public transport, resilient services and participatory governance.[web:89][web:91][web:97]  
 Without strong asset intelligence, investments intended to support SDG 11 can instead create stranded, poorly used assets.
 
-NationTrack contributes to SDG 11 by:
+Sanchay contributes to SDG 11 by:
 
 - Improving **reliability and utilisation** of public fleets, equipment and buildings, which underpins safe transport, health services and emergency response.[web:90][web:92]
 - Enabling **resource efficiency and resilience**, by extending asset lifetimes and helping cities redeploy assets quickly in disasters.
@@ -94,15 +94,15 @@ From a national, SDG‑aligned governance view, gaps include:
 - **Little integration with open data or citizen inputs** – most tools are closed enterprise systems, not designed for participatory governance or open dashboards.[web:26][web:34][web:96]
 - **Not built as reusable public digital infrastructure** – licensing and design often make it hard for NIC/state IT to adopt and extend them as shared platforms.
 
-NationTrack is designed explicitly to fill **this governance‑intelligence gap**, not to duplicate basic inventory features.
+Sanchay is designed explicitly to fill **this governance‑intelligence gap**, not to duplicate basic inventory features.
 
 ---
 
-## 6. NationTrack Concept
+## 6. Sanchay Concept
 
 ### 6.1 Core idea
 
-NationTrack is a **plug‑and‑play asset intelligence layer** that:
+Sanchay is a **plug‑and‑play asset intelligence layer** that:
 
 - Ingests data from existing registers, ERPs, IoT/telematics, open data portals and citizen/field reports.
 - Normalises it into a **digital asset passport** for every asset.
@@ -175,7 +175,7 @@ NationTrack is a **plug‑and‑play asset intelligence layer** that:
 
 ## 10. Innovation and Differentiation
 
-NationTrack is distinctive because it:
+Sanchay is distinctive because it:
 
 1. **Spans departments and asset types** rather than staying within a single agency or asset class.[web:44][web:41]
 2. Embeds **AI‑driven maintenance and utilisation intelligence**, grounded in proven fleet‑maintenance results, instead of only scheduled reminders.[web:38][web:78][web:108]
@@ -210,10 +210,10 @@ Planned near‑term work includes integration with realistic datasets, richer ti
 
 ## 13. Long‑Term Vision
 
-Over 3–5 years, NationTrack aims to evolve into a **reference implementation for public‑asset intelligence**:
+Over 3–5 years, Sanchay aims to evolve into a **reference implementation for public‑asset intelligence**:
 
 - Deployed in at least one state as a shared platform across multiple departments.
 - Integrated with SDG‑ and disaster‑related indicators, helping cities monitor infrastructure reliability and resilience.[web:89][web:91][web:96]
 - Open‑sourced wherever possible, enabling universities, civic‑tech groups and smaller municipalities to reuse and improve the design.
 
-In the long run, the goal is that whenever India debates new capex or SDG‑11 progress, decision‑makers can consult a **live, trusted asset graph** powered by NationTrack or its derivatives, making public infrastructure truly inclusive, safe, resilient and sustainable.
+In the long run, the goal is that whenever India debates new capex or SDG‑11 progress, decision‑makers can consult a **live, trusted asset graph** powered by Sanchay or its derivatives, making public infrastructure truly inclusive, safe, resilient and sustainable.

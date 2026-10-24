@@ -4,7 +4,7 @@ import { ArrowRight, BadgeCheck, Building2, CarFront, MapPin } from 'lucide-reac
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
-import type { AssetPassport } from '@/types/nationtrack';
+import type { AssetPassport } from '@/types/sanchay';
 
 interface AssetPassportCardProps {
   asset: AssetPassport;

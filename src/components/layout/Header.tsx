@@ -39,8 +39,8 @@ export function Header() {
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5" data-no-translate="true">
-            <Image src="/NationTrack.png" alt="NationTrack logo" width={36} height={36} priority />
-            <span className="text-lg font-bold leading-tight text-foreground">NationTrack</span>
+            <Image src="/Sanchay.png" alt="Sanchay logo" width={36} height={36} priority />
+            <span className="text-lg font-bold leading-tight text-foreground">Sanchay</span>
           </Link>
 
           {/* Desktop Navigation - Centered */}

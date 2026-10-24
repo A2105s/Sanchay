@@ -7,8 +7,8 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { nationTrackService } from '@/lib/nationtrack-service';
-import type { AssetPassport, AssetType } from '@/types/nationtrack';
+import { sanchayService } from '@/lib/sanchay-service';
+import type { AssetPassport, AssetType } from '@/types/sanchay';
 import type { Space } from '@/types/spaces';
 
 export default function AdminAssetsPage() {
@@ -30,7 +30,7 @@ export default function AdminAssetsPage() {
           setSpaces(payload.success && payload.data ? payload.data : []);
           setAssets([]);
         } else {
-          const data = await nationTrackService.getAssets();
+          const data = await sanchayService.getAssets();
           setAssets(data);
           setSpaces([]);
         }

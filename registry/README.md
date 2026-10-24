@@ -1,6 +1,6 @@
-# NationTrack Component Registry
+# Sanchay Component Registry
 
-This directory contains the shared component registry structure for the NationTrack design system.
+This directory contains the shared component registry structure for the Sanchay design system.
 
 ## Structure
 
@@ -18,10 +18,10 @@ Components can be installed via the shadcn CLI or MCP:
 
 ```bash
 # Via CLI
-npx shadcn@latest add @nationtrack/header
+npx shadcn@latest add @sanchay/header
 
 # Via MCP (in VS Code)
-"Add the header component from nationtrack registry"
+"Add the header component from sanchay registry"
 ```
 
 ## Adding New Components

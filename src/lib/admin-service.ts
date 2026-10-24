@@ -11,14 +11,14 @@ type CacheRecord = {
 
 const getGlobalCacheStore = (): Map<string, CacheRecord> => {
   const globalWithCache = globalThis as typeof globalThis & {
-    __nationtrackAdminCache?: Map<string, CacheRecord>;
+    __sanchayAdminCache?: Map<string, CacheRecord>;
   };
 
-  if (!globalWithCache.__nationtrackAdminCache) {
-    globalWithCache.__nationtrackAdminCache = new Map<string, CacheRecord>();
+  if (!globalWithCache.__sanchayAdminCache) {
+    globalWithCache.__sanchayAdminCache = new Map<string, CacheRecord>();
   }
 
-  return globalWithCache.__nationtrackAdminCache;
+  return globalWithCache.__sanchayAdminCache;
 };
 
 const getCachedDashboardStats = (): DashboardStatsResponse | null => {

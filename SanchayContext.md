@@ -1,12 +1,12 @@
-**NationTrack WebApp Development Context File**  
+**Sanchay WebApp Development Context File**  
 **Version: 1.0 (March 2026)**  
-**Purpose**: This file is the single source of truth for any AI coding assistant (Claude, GPT, Grok, Cursor, etc.) to build the full-stack NationTrack webapp.  
+**Purpose**: This file is the single source of truth for any AI coding assistant (Claude, GPT, Grok, Cursor, etc.) to build the full-stack Sanchay webapp.  
 **Project Goal**: Build a plug-and-play **asset intelligence layer** that sits on top of existing government systems to track, optimise and re-use public assets (vehicles + public spaces) in Gwalior pilot, with clear path to state-wide scaling.
 
 ### 1. Project Vision & Problem Statement
 
 Indian governments spend ~₹15.48 lakh crore annually on capital assets, but lack unified visibility → massive idle assets, reactive maintenance, duplicate purchases.  
-NationTrack solves this by creating a **digital asset passport** for every asset with AI intelligence, real-time tracking, booking/re-use logic and immutable audit trails.
+Sanchay solves this by creating a **digital asset passport** for every asset with AI intelligence, real-time tracking, booking/re-use logic and immutable audit trails.
 
 **Target Pilot**: Gwalior (Madhya Pradesh)  
 **Initial Modules**:
@@ -143,7 +143,7 @@ Ledger: Hyperledger Fabric (or Mongo with hash for MVP)
 ### 10. Folder Structure (strictly follow)
 
 ```
-/nationtrack
+/sanchay
 ├── apps/
 │   ├── web/               ← Next.js frontend
 │   └── api/               ← NestJS/Express backend

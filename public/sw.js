@@ -2,12 +2,12 @@
 importScripts('https://storage.googleapis.com/workbox-cdn/releases/7.1.0/workbox-sw.js');
 
 if (workbox) {
-  workbox.core.setCacheNameDetails({ prefix: 'nationtrack-auto' });
+  workbox.core.setCacheNameDetails({ prefix: 'sanchay-auto' });
   workbox.core.clientsClaim();
   workbox.core.skipWaiting();
 
   workbox.precaching.precacheAndRoute([
-    { url: '/NationTrack.png', revision: '1' },
+    { url: '/Sanchay.png', revision: '1' },
     { url: '/automobiles', revision: '1' },
   ]);
 

@@ -19,7 +19,7 @@ type TranslationContextValue = {
   languages: Array<{ code: SupportedLanguage; label: string }>;
 };
 
-const LANG_STORAGE_KEY = 'nationtrack.language';
+const LANG_STORAGE_KEY = 'sanchay.language';
 const translationCache = new Map<string, string>();
 
 const TranslationContext = createContext<TranslationContextValue | null>(null);

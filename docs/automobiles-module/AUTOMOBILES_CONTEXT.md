@@ -1,8 +1,8 @@
-# NationTrack Automobiles Module - AI Context
+# Sanchay Automobiles Module - AI Context
 
 ## Overview
 
-The Automobiles Module is a comprehensive fleet management and tracking system integrated into the NationTrack application. It provides real-time tracking, monitoring, and management of municipal vehicles including police patrol cars, ambulances, PWD heavy machinery, and other department vehicles in Gwalior city.
+The Automobiles Module is a comprehensive fleet management and tracking system integrated into the Sanchay application. It provides real-time tracking, monitoring, and management of municipal vehicles including police patrol cars, ambulances, PWD heavy machinery, and other department vehicles in Gwalior city.
 
 ## Purpose & Key Objectives
 

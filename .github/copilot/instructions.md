@@ -1,8 +1,8 @@
-# NationTrack - GitHub Copilot Instructions
+# Sanchay - GitHub Copilot Instructions
 
 ## Project Context
 
-This is **NationTrack** - an operational governance platform for managing public assets, spaces, bookings, and audit visibility.
+This is **Sanchay** - an operational governance platform for managing public assets, spaces, bookings, and audit visibility.
 
 ## Technology Stack
 

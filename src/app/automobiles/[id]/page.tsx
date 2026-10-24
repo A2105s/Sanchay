@@ -8,8 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDate } from '@/lib/date-utils';
-import { nationTrackService } from '@/lib/nationtrack-service';
-import type { AssetPassport } from '@/types/nationtrack';
+import { sanchayService } from '@/lib/sanchay-service';
+import type { AssetPassport } from '@/types/sanchay';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -23,7 +23,7 @@ export default function AutomobilePassportPage({ params }: Props) {
   useEffect(() => {
     const load = async () => {
       try {
-        const vehicles = await nationTrackService.getAssets('VEHICLE');
+        const vehicles = await sanchayService.getAssets('VEHICLE');
         const found = vehicles.find((vehicle) => vehicle.id === id) ?? null;
         setAsset(found);
       } catch (error) {
@@ -104,7 +104,7 @@ export default function AutomobilePassportPage({ params }: Props) {
               </p>
               <h1 className="mt-1 text-3xl font-bold text-foreground">{asset.name}</h1>
               <p className="mt-2 max-w-2xl text-muted-foreground">
-                NationTrack digital passport for operational and compliance tracking.
+                Sanchay digital passport for operational and compliance tracking.
               </p>
             </div>
             <Badge className="bg-azure-600 text-white">{asset.status}</Badge>

@@ -22,7 +22,7 @@ const resolveOpenSpacePhoto = (space: Space): string => {
   const explicitPhoto = space.photos[0];
   const isPlaceholder =
     !explicitPhoto ||
-    explicitPhoto === '/NationTrack-placeholder.jpg' ||
+    explicitPhoto === '/Sanchay-placeholder.jpg' ||
     explicitPhoto.length === 0;
 
   if (!isPlaceholder) return explicitPhoto;
@@ -34,7 +34,7 @@ const resolveOpenSpacePhoto = (space: Space): string => {
   if (key.includes('samudayikbhavanbmorar')) return 'https://i.ibb.co/xKYpzHfK/image.png';
   if (key.includes('communityhallthatipur')) return 'https://i.ibb.co/rKqDYDpj/image.png';
 
-  return '/NationTrack-placeholder.jpg';
+  return '/Sanchay-placeholder.jpg';
 };
 
 const badgeClass: Record<Space['status'], string> = {
@@ -99,8 +99,8 @@ export function SpaceShowcaseCard({
             unoptimized={cardPhoto.startsWith('https://i.ibb.co/')}
             referrerPolicy="no-referrer"
             onError={() => {
-              if (cardPhoto !== '/NationTrack-placeholder.jpg') {
-                setCardPhoto('/NationTrack-placeholder.jpg');
+              if (cardPhoto !== '/Sanchay-placeholder.jpg') {
+                setCardPhoto('/Sanchay-placeholder.jpg');
               }
             }}
           />
